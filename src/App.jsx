@@ -8,6 +8,93 @@ const CONSTRUCTOR_COLORS = {
   "Audi":"#BB0000","Cadillac":"#333F8C",
 };
 
+// Mini SVG logos for each constructor
+const CONSTRUCTOR_LOGOS = {
+  "McLaren": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#FF8000"/>
+      <path d="M4 20 Q16 8 28 20" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
+    </svg>
+  ),
+  "Mercedes": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#00D2BE"/>
+      <circle cx="16" cy="16" r="9" stroke="white" strokeWidth="2" fill="none"/>
+      <line x1="16" y1="7" x2="16" y2="16" stroke="white" strokeWidth="2"/>
+      <line x1="16" y1="16" x2="9" y2="22" stroke="white" strokeWidth="2"/>
+      <line x1="16" y1="16" x2="23" y2="22" stroke="white" strokeWidth="2"/>
+    </svg>
+  ),
+  "Red Bull": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#3671C6"/>
+      <circle cx="11" cy="16" r="6" fill="#CC1E1E"/>
+      <circle cx="21" cy="16" r="6" fill="#FFC700"/>
+    </svg>
+  ),
+  "Ferrari": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#E8002D"/>
+      <rect x="13" y="6" width="6" height="20" fill="#FFC700"/>
+      <rect x="6" y="13" width="20" height="6" fill="#FFC700"/>
+    </svg>
+  ),
+  "Aston Martin": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#358C75"/>
+      <path d="M6 22 L16 10 L26 22" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  "Alpine": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#0093CC"/>
+      <path d="M6 20 L12 12 L16 18 L20 12 L26 20" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  "Williams": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#00A0DD"/>
+      <path d="M8 16 Q16 8 24 16 Q16 24 8 16Z" fill="white"/>
+    </svg>
+  ),
+  "Racing Bulls": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#1B2856"/>
+      <path d="M6 20 C8 12 14 10 16 16 C18 10 24 12 26 20" stroke="#6692FF" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    </svg>
+  ),
+  "Haas": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#1a1a1a"/>
+      <rect x="6" y="14" width="20" height="4" fill="white"/>
+      <rect x="6" y="8" width="8" height="4" fill="#E8002D"/>
+      <rect x="18" y="20" width="8" height="4" fill="#E8002D"/>
+    </svg>
+  ),
+  "Audi": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#BB0000"/>
+      <circle cx="10" cy="16" r="4" stroke="white" strokeWidth="2" fill="none"/>
+      <circle cx="16" cy="16" r="4" stroke="white" strokeWidth="2" fill="none"/>
+      <circle cx="22" cy="16" r="4" stroke="white" strokeWidth="2" fill="none"/>
+    </svg>
+  ),
+  "Cadillac": ({ size=20 }) => (
+    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+      <rect width="32" height="32" rx="4" fill="#333F8C"/>
+      <rect x="8" y="10" width="16" height="12" rx="1" stroke="white" strokeWidth="2" fill="none"/>
+      <line x1="8" y1="16" x2="24" y2="16" stroke="white" strokeWidth="2"/>
+      <line x1="16" y1="10" x2="16" y2="22" stroke="white" strokeWidth="2"/>
+    </svg>
+  ),
+};
+
+function ConstructorLogo({ constructor, size=20 }) {
+  const Logo = CONSTRUCTOR_LOGOS[constructor];
+  if (!Logo) return <ConstructorDot constructor={constructor} size={size}/>;
+  return <Logo size={size}/>;
+}
+
 // ── Data hook ─────────────────────────────────────────────────
 function useData() {
   const [state, setState] = useState({
@@ -219,7 +306,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
                       <div style={{flex:1,minWidth:120}}>
                         <div style={{fontWeight:600,fontSize:13}}>{driver.name}</div>
                         <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#666",marginTop:2}}>
-                          <ConstructorDot constructor={driver.constructor}/>
+                          <ConstructorLogo constructor={driver.constructor}/>
                           {driver.constructor}
                           {constructorMatch && <span style={{color:"#D4AC0D",fontWeight:700,marginLeft:4}}>+15% 🏆</span>}
                         </div>
@@ -328,7 +415,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
             <div style={{flex:1}}>
               <div style={{fontSize:18,fontWeight:700}}>{s.owner_name}</div>
               <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#888",marginTop:4}}>
-                <ConstructorDot constructor={s.constructor}/>
+                <ConstructorLogo constructor={s.constructor}/>
                 {s.constructor}
               </div>
             </div>
@@ -542,7 +629,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, reload }) {
                         )}
                       </td>
                       <td style={tdStyle(ownerIdx)}>
-                        {selDriver&&<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}><ConstructorDot constructor={selDriver.constructor}/>{selDriver.constructor}</span>}
+                        {selDriver&&<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}><ConstructorLogo constructor={selDriver.constructor}/>{selDriver.constructor}</span>}
                       </td>
                     </tr>
                   );
@@ -669,7 +756,7 @@ function ResultsTab({ races, results, drivers, reload }) {
                       <td style={{...tdStyle,textAlign:"left",fontWeight:500,whiteSpace:"nowrap"}}>{d.name}</td>
                       <td style={{...tdStyle,textAlign:"left"}}>
                         <span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}>
-                          <ConstructorDot constructor={d.constructor}/>{d.constructor}
+                          <ConstructorLogo constructor={d.constructor}/>{d.constructor}
                         </span>
                       </td>
                       <td style={tdStyle}>
