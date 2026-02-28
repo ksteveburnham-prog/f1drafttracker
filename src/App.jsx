@@ -89,6 +89,166 @@ function Msg({ type, text }) {
   return <div style={{padding:"10px 16px",borderRadius:8,fontSize:14,...styles[type]}}>{text}</div>;
 }
 
+// ── Race Countdown ─────────────────────────────────────────────
+function RaceCountdown({ races }) {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const nextRace = races.find(r => !r.results_updated && r.race_date && new Date(r.race_date) >= now);
+  if (!nextRace) return null;
+
+  const raceDate = new Date(nextRace.race_date);
+  const diffMs = raceDate - now;
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+
+  const urgency = diffDays === 0 ? "#E8002D" : diffDays <= 3 ? "#FF8000" : "#27AE60";
+
+  return (
+    <div style={{
+      background:`linear-gradient(135deg, ${urgency}11, #0a0a0f)`,
+      border:`1px solid ${urgency}33`,
+      borderRadius:12, padding:"14px 20px",
+      display:"flex", alignItems:"center", gap:16, flexWrap:"wrap",
+      marginBottom:8,
+    }}>
+      <span style={{fontSize:24}}>🏁</span>
+      <div style={{flex:1}}>
+        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:2}}>Next Race</div>
+        <div style={{fontSize:16,fontWeight:700}}>
+          Round {nextRace.round} — {nextRace.name}
+          {nextRace.has_sprint && <span style={{marginLeft:8}}><Badge color="#FF8000">Sprint</Badge></span>}
+        </div>
+      </div>
+      <div style={{textAlign:"right"}}>
+        {diffDays === 0 ? (
+          <div style={{fontSize:22,fontWeight:900,color:urgency}}>TODAY 🚨</div>
+        ) : (
+          <div>
+            <span style={{fontSize:28,fontWeight:900,color:urgency}}>{diffDays}</span>
+            <span style={{fontSize:13,color:"#888",marginLeft:4}}>days {diffHrs}h</span>
+          </div>
+        )}
+        <div style={{fontSize:11,color:"#555",marginTop:2}}>
+          {raceDate.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Points Breakdown Modal ─────────────────────────────────────
+function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose }) {
+  if (!race) return null;
+
+  const raceResults = results.filter(r => r.race_id === race.id);
+  const raceDrafts = drafts.filter(d => d.race_id === race.id);
+
+  const ownerBreakdowns = owners.map(owner => {
+    const ownerDrafts = raceDrafts.filter(d => d.owner_id === owner.id);
+    const driverRows = ownerDrafts.map(draft => {
+      const result = raceResults.find(r => r.driver_id === draft.driver_id);
+      const driver = drivers.find(d => d.id === draft.driver_id);
+      if (!result || !driver) return null;
+
+      const pos = result.finish_position;
+      let base = 0;
+      if (pos === 1) base = 30;
+      else if (pos <= 3) base = 24;
+      else if (pos <= 6) base = 18;
+      else if (pos <= 10) base = 12;
+      else if (pos <= 15) base = 6;
+      else if (pos <= 20) base = 2;
+
+      let bonus = 0;
+      if (result.pole_position) bonus += 5;
+      if (result.fastest_lap) bonus += 3;
+      if (result.most_pos_gained) bonus += 2;
+      if (result.sprint_win) bonus += 5;
+      if (result.sprint_pole) bonus += 3;
+
+      const constructorMatch = driver.constructor === owner.constructor;
+      const multiplier = constructorMatch ? 1.15 : 1.0;
+      const total = Math.round((base * multiplier + bonus) * 100) / 100;
+
+      return { driver, result, base, bonus, multiplier, total, constructorMatch };
+    }).filter(Boolean);
+
+    const totalPts = driverRows.reduce((s, r) => s + r.total, 0);
+    return { owner, driverRows, totalPts };
+  });
+
+  return (
+    <div style={{
+      position:"fixed", inset:0, background:"rgba(0,0,0,0.85)",
+      zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center",
+      padding:16,
+    }} onClick={onClose}>
+      <div style={{
+        background:"#111118", border:"1px solid #222232", borderRadius:16,
+        width:"100%", maxWidth:680, maxHeight:"85vh", overflowY:"auto",
+        padding:24,
+      }} onClick={e => e.stopPropagation()}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
+          <h2 style={{fontSize:18,fontWeight:700}}>
+            <Flag round={race.round}/>&nbsp; {race.name} — Points Breakdown
+          </h2>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
+        </div>
+
+        <div style={{display:"flex",flexDirection:"column",gap:20}}>
+          {ownerBreakdowns.map(({ owner, driverRows, totalPts }) => (
+            <div key={owner.id} style={{background:"#0a0a14",borderRadius:12,padding:16,border:"1px solid #222232"}}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
+                <div style={{fontSize:15,fontWeight:700}}>{owner.name}</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#E8002D"}}>{totalPts.toFixed(1)} pts</div>
+              </div>
+              {driverRows.length === 0 ? (
+                <div style={{color:"#444",fontSize:13,fontStyle:"italic"}}>No results yet</div>
+              ) : (
+                <div style={{display:"flex",flexDirection:"column",gap:8}}>
+                  {driverRows.map(({ driver, result, base, bonus, multiplier, total, constructorMatch }) => (
+                    <div key={driver.id} style={{
+                      background:"#111118", borderRadius:8, padding:"10px 14px",
+                      display:"flex", alignItems:"center", gap:12, flexWrap:"wrap",
+                      border: constructorMatch ? "1px solid #D4AC0D33" : "1px solid #1a1a28",
+                    }}>
+                      <div style={{flex:1,minWidth:120}}>
+                        <div style={{fontWeight:600,fontSize:13}}>{driver.name}</div>
+                        <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#666",marginTop:2}}>
+                          <ConstructorDot constructor={driver.constructor}/>
+                          {driver.constructor}
+                          {constructorMatch && <span style={{color:"#D4AC0D",fontWeight:700,marginLeft:4}}>+15% 🏆</span>}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap",fontSize:11}}>
+                        <span style={{background:"#1a1a28",padding:"2px 8px",borderRadius:4,color:"#aaa"}}>
+                          P{result.finish_position} → {base}pts
+                        </span>
+                        {result.pole_position && <span style={{background:"#3671C622",color:"#6692FF",padding:"2px 8px",borderRadius:4}}>Pole +5</span>}
+                        {result.fastest_lap && <span style={{background:"#FF800022",color:"#FF8000",padding:"2px 8px",borderRadius:4}}>FL +3</span>}
+                        {result.most_pos_gained && <span style={{background:"#27AE6022",color:"#27AE60",padding:"2px 8px",borderRadius:4}}>MPG +2</span>}
+                        {result.sprint_win && <span style={{background:"#E8002D22",color:"#E8002D",padding:"2px 8px",borderRadius:4}}>SW +5</span>}
+                        {result.sprint_pole && <span style={{background:"#00D2BE22",color:"#00D2BE",padding:"2px 8px",borderRadius:4}}>SP +3</span>}
+                      </div>
+                      <div style={{fontWeight:800,fontSize:15,color:"#fff",minWidth:50,textAlign:"right"}}>
+                        {total.toFixed(1)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Settlement banner ─────────────────────────────────────────
 function Settlement({ standings, payouts }) {
   if(!standings?.length || !payouts?.length) return null;
@@ -132,7 +292,9 @@ function Settlement({ standings, payouts }) {
 }
 
 // ── Scoreboard tab ────────────────────────────────────────────
-function ScoreboardTab({ standings, raceScores, payouts, races }) {
+function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers }) {
+  const [breakdown, setBreakdown] = useState(null);
+
   const ownerNames = standings.map(s=>s.owner_name);
   const byRound = {};
   for(const rs of raceScores) {
@@ -147,6 +309,17 @@ function ScoreboardTab({ standings, raceScores, payouts, races }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:24}}>
+      {breakdown && (
+        <PointsBreakdownModal
+          race={breakdown}
+          results={results}
+          drafts={drafts}
+          owners={owners}
+          drivers={drivers}
+          onClose={() => setBreakdown(null)}
+        />
+      )}
+
       {/* Standing cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:16}}>
         {standings.map((s,i) => (
@@ -188,10 +361,16 @@ function ScoreboardTab({ standings, raceScores, payouts, races }) {
               const winner=isTie?"Tie":ownerNames[pts.indexOf(maxPts)];
               const purse=Object.values(payoutByRound[race.round]??{}).find(p=>!p.is_tie&&p.winnings>0)?.winnings??20;
               return (
-                <tr key={race.id}>
+                <tr key={race.id}
+                  onClick={() => setBreakdown(race)}
+                  style={{cursor:"pointer"}}
+                  onMouseEnter={e => e.currentTarget.style.background="#16161f"}
+                  onMouseLeave={e => e.currentTarget.style.background=""}
+                >
                   <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,fontWeight:500}}>
                     <Flag round={race.round}/>{race.name}
                     {race.has_sprint&&<Badge color="#FF8000">S</Badge>}
+                    <span style={{fontSize:10,color:"#444",marginLeft:4}}>🔍</span>
                   </td>
                   {ownerNames.map((o,i)=>(
                     <td key={o} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:allHave&&pts[i]===maxPts&&!isTie?"#27AE60":"#e8e8f0"}}>
@@ -217,6 +396,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races }) {
           </tbody>
         </table>
       </div>
+      <div style={{fontSize:11,color:"#444",fontStyle:"italic"}}>💡 Tap any completed race row to see the full points breakdown</div>
     </div>
   );
 }
@@ -289,7 +469,7 @@ function DraftTab({ races, drafts, owners, drivers, reload }) {
 
       {race && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
             <h3 style={{fontSize:16,fontWeight:700}}>Draft Board — {race.name}</h3>
             {existing.length>0&&<Badge color="#27AE60">{existing.length} picks saved</Badge>}
           </div>
@@ -322,7 +502,7 @@ function DraftTab({ races, drafts, owners, drivers, reload }) {
                           <span style={{color:"#27AE60",fontWeight:500}}>{ex.drivers?.name}</span>
                         ) : (
                           <select value={cur?.driverId??""} onChange={e=>handlePick(pick,e.target.value,ownerIdx)}
-                            style={{background:"#0a0a14",border:"1px solid #2a2a3a",color:"#e8e8f0",padding:"6px 10px",borderRadius:6,fontSize:13,width:"100%",minWidth:200,cursor:"pointer",outline:"none"}}>
+                            style={{background:"#0a0a14",border:"1px solid #2a2a3a",color:"#e8e8f0",padding:"6px 10px",borderRadius:6,fontSize:13,width:"100%",minWidth:160,cursor:"pointer",outline:"none"}}>
                             <option value="">— Select driver —</option>
                             {drivers.filter(d=>!usedIds.includes(d.id)||d.id===cur?.driverId).map(d=>(
                               <option key={d.id} value={d.id}>{d.name}</option>
@@ -454,7 +634,7 @@ function ResultsTab({ races, results, drivers, reload }) {
                 {drivers.map(d=>{
                   const f=form[d.id]??{};
                   return (
-                    <tr key={d.id} style={{cursor:"default"}}>
+                    <tr key={d.id}>
                       <td style={{...tdStyle,textAlign:"left",fontWeight:500,whiteSpace:"nowrap"}}>{d.name}</td>
                       <td style={{...tdStyle,textAlign:"left"}}>
                         <span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}>
@@ -503,16 +683,23 @@ export default function App() {
         body { background: #0a0a0f; }
         select option { background: #111118; color: #e8e8f0; }
         input[type=number]::-webkit-inner-spin-button { opacity:1; }
+        @media (max-width: 600px) {
+          .main-content { padding: 16px !important; }
+          .header-title { font-size: 18px !important; }
+          .tab-label-full { display: none; }
+          .tab-label-short { display: inline !important; }
+          .settlement-text { font-size: 15px !important; }
+        }
       `}</style>
 
       {/* Header */}
-      <header style={{background:"linear-gradient(135deg,#0d0d1a 0%,#1a0a0a 100%)",borderBottom:"2px solid #E8002D33",padding:"0 24px"}}>
-        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:64}}>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            <span style={{fontSize:28}}>🏎</span>
-            <h1 style={{fontSize:22,fontWeight:800,letterSpacing:"-0.5px"}}>F1 Fantasy <span style={{color:"#E8002D"}}>2026</span></h1>
+      <header style={{background:"linear-gradient(135deg,#0d0d1a 0%,#1a0a0a 100%)",borderBottom:"2px solid #E8002D33",padding:"0 16px"}}>
+        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:56}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:24}}>🏎</span>
+            <h1 className="header-title" style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>F1 Fantasy <span style={{color:"#E8002D"}}>2026</span></h1>
           </div>
-          <span style={{fontSize:12,fontWeight:600,letterSpacing:1,background:"#E8002D22",color:"#E8002D",padding:"4px 12px",borderRadius:20,border:"1px solid #E8002D44",textTransform:"uppercase"}}>
+          <span style={{fontSize:11,fontWeight:600,letterSpacing:1,background:"#E8002D22",color:"#E8002D",padding:"4px 10px",borderRadius:20,border:"1px solid #E8002D44",textTransform:"uppercase",whiteSpace:"nowrap"}}>
             Steve vs Trevor
           </span>
         </div>
@@ -522,21 +709,32 @@ export default function App() {
       {!loading&&!error&&<Settlement standings={standings} payouts={payouts}/>}
 
       {/* Tabs */}
-      <nav style={{display:"flex",gap:2,background:"#111118",borderBottom:"1px solid #222232",padding:"0 24px",overflowX:"auto"}}>
-        {[["scoreboard","🏆 Scoreboard"],["draft","📋 Draft"],["results","🏁 Results"]].map(([id,label])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{background:"none",border:"none",cursor:"pointer",color:tab===id?"#fff":"#666",fontSize:14,fontWeight:600,padding:"14px 20px",borderBottom:`3px solid ${tab===id?"#E8002D":"transparent"}`,transition:"all 0.15s",whiteSpace:"nowrap"}}>
-            {label}
+      <nav style={{display:"flex",gap:2,background:"#111118",borderBottom:"1px solid #222232",padding:"0 16px",overflowX:"auto"}}>
+        {[
+          ["scoreboard","🏆 Scoreboard","🏆"],
+          ["draft","📋 Draft","📋"],
+          ["results","🏁 Results","🏁"],
+        ].map(([id,label,short])=>(
+          <button key={id} onClick={()=>setTab(id)} style={{background:"none",border:"none",cursor:"pointer",color:tab===id?"#fff":"#666",fontSize:14,fontWeight:600,padding:"14px 16px",borderBottom:`3px solid ${tab===id?"#E8002D":"transparent"}`,transition:"all 0.15s",whiteSpace:"nowrap"}}>
+            <span className="tab-label-full">{label}</span>
+            <span className="tab-label-short" style={{display:"none"}}>{short}</span>
           </button>
         ))}
       </nav>
 
       {/* Content */}
-      <main style={{flex:1,padding:24,maxWidth:1100,margin:"0 auto",width:"100%"}}>
+      <main className="main-content" style={{flex:1,padding:24,maxWidth:1100,margin:"0 auto",width:"100%"}}>
         {loading && <Spinner/>}
         {error   && <div style={{background:"#1a0808",border:"1px solid #E8002D44",color:"#E8002D",padding:16,borderRadius:8}}>⚠️ {error}</div>}
-        {!loading&&!error&&tab==="scoreboard"&&<ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races}/>}
-        {!loading&&!error&&tab==="draft"     &&<DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} reload={reload}/>}
-        {!loading&&!error&&tab==="results"   &&<ResultsTab races={races} results={results} drivers={drivers} reload={reload}/>}
+        {!loading&&!error&&(
+          <>
+            {tab==="scoreboard" && <RaceCountdown races={races}/>}
+            {tab==="scoreboard" && <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers}/>}
+            {tab==="draft"      && <RaceCountdown races={races}/>}
+            {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} reload={reload}/>}
+            {tab==="results"    && <ResultsTab races={races} results={results} drivers={drivers} reload={reload}/>}
+          </>
+        )}
       </main>
     </div>
   );
