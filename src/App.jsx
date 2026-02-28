@@ -259,7 +259,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
 
       const constructorMatch = driver.constructor === owner.constructor;
       const multiplier = constructorMatch ? 1.15 : 1.0;
-      const total = Math.round((base * multiplier + bonus) * 100) / 100;
+      const total = Math.round(base * multiplier + bonus);
 
       return { driver, result, base, bonus, multiplier, total, constructorMatch };
     }).filter(Boolean);
@@ -291,7 +291,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
             <div key={owner.id} style={{background:"#0a0a14",borderRadius:12,padding:16,border:"1px solid #222232"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                 <div style={{fontSize:15,fontWeight:700}}>{owner.name}</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#E8002D"}}>{Math.round(totalPts * 10) / 10} pts</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#E8002D"}}>{Math.round(totalPts)} pts</div>
               </div>
               {driverRows.length === 0 ? (
                 <div style={{color:"#444",fontSize:13,fontStyle:"italic"}}>No results yet</div>
@@ -322,7 +322,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
                         {result.sprint_pole && <span style={{background:"#00D2BE22",color:"#00D2BE",padding:"2px 8px",borderRadius:4}}>SP +3</span>}
                       </div>
                       <div style={{fontWeight:800,fontSize:15,color:"#fff",minWidth:50,textAlign:"right"}}>
-                        {Math.round(total * 10) / 10}
+                        {Math.round(total)}
                       </div>
                     </div>
                   ))}
@@ -460,7 +460,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
                   </td>
                   {ownerNames.map((o,i)=>(
                     <td key={o} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:allHave&&pts[i]===maxPts&&!isTie?"#27AE60":"#e8e8f0"}}>
-                      {sc[o]!=null?Math.round(Number(sc[o]) * 10) / 10:"—"}
+                      {sc[o]!=null?Math.round(Number(sc[o])):"—"}
                     </td>
                   ))}
                   <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:isTie?"#888":"#fff"}}>
