@@ -291,7 +291,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
             <div key={owner.id} style={{background:"#0a0a14",borderRadius:12,padding:16,border:"1px solid #222232"}}>
               <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
                 <div style={{fontSize:15,fontWeight:700}}>{owner.name}</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#E8002D"}}>{totalPts.toFixed(1)} pts</div>
+                <div style={{fontSize:20,fontWeight:900,color:"#E8002D"}}>{Math.round(totalPts * 10) / 10} pts</div>
               </div>
               {driverRows.length === 0 ? (
                 <div style={{color:"#444",fontSize:13,fontStyle:"italic"}}>No results yet</div>
@@ -322,7 +322,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
                         {result.sprint_pole && <span style={{background:"#00D2BE22",color:"#00D2BE",padding:"2px 8px",borderRadius:4}}>SP +3</span>}
                       </div>
                       <div style={{fontWeight:800,fontSize:15,color:"#fff",minWidth:50,textAlign:"right"}}>
-                        {total.toFixed(1)}
+                        {Math.round(total * 10) / 10}
                       </div>
                     </div>
                   ))}
@@ -363,7 +363,7 @@ function Settlement({ standings, payouts }) {
       <div style={{flex:1,fontSize:18,fontWeight:600}}>
         {allSquare
           ? "🤝 All Square — No Money Owed"
-          : <><span style={{color:"#fff",fontWeight:700}}>{debtor}</span> owes <span style={{color:"#fff",fontWeight:700}}>{creditor}</span> <span style={{color:"#E8002D",fontSize:22,fontWeight:900}}>${amount.toLocaleString()}</span></>
+          : <><span style={{color:"#fff",fontWeight:700}}>{debtor}</span> owes <span style={{color:"#fff",fontWeight:700}}>{creditor}</span> <span style={{color:"#D4AC0D",fontSize:22,fontWeight:900}}>${amount.toLocaleString()}</span></>
         }
       </div>
       <div style={{display:"flex",gap:24}}>
@@ -420,7 +420,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
               </div>
             </div>
             <div style={{textAlign:"right"}}>
-              <span style={{fontSize:28,fontWeight:900}}>{Number(s.season_points).toFixed(0)}</span>
+              <span style={{fontSize:28,fontWeight:900}}>{Math.round(Number(s.season_points))}</span>
               <span style={{fontSize:12,color:"#666",marginLeft:2}}>pts</span>
             </div>
           </div>
@@ -433,7 +433,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
           <thead>
             <tr>
-              {["Race",...ownerNames,"Winner","💰"].map(h=>(
+              {["Race",...ownerNames,"Winner"].map(h=>(
                 <th key={h} style={{background:"#111118",padding:"12px 16px",textAlign:h==="Race"?"left":"center",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",borderBottom:"1px solid #222232"}}>{h}</th>
               ))}
             </tr>
@@ -446,7 +446,6 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
               const maxPts=allHave?Math.max(...pts):null;
               const isTie=allHave&&pts.every(p=>p===maxPts);
               const winner=isTie?"Tie":ownerNames[pts.indexOf(maxPts)];
-              const purse=Object.values(payoutByRound[race.round]??{}).find(p=>!p.is_tie&&p.winnings>0)?.winnings??20;
               return (
                 <tr key={race.id}
                   onClick={() => setBreakdown(race)}
@@ -461,13 +460,13 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
                   </td>
                   {ownerNames.map((o,i)=>(
                     <td key={o} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:allHave&&pts[i]===maxPts&&!isTie?"#27AE60":"#e8e8f0"}}>
-                      {sc[o]!=null?Number(sc[o]).toFixed(1):"—"}
+                      {sc[o]!=null?Math.round(Number(sc[o]) * 10) / 10:"—"}
                     </td>
                   ))}
                   <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:isTie?"#888":"#fff"}}>
                     {isTie?"🤝 Tie":winner}
                   </td>
-                  <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",color:"#D4AC0D",fontWeight:700}}>${purse}</td>
+
                 </tr>
               );
             })}
