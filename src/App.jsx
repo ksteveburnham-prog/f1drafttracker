@@ -402,7 +402,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
 }
 
 // ── Draft tab ─────────────────────────────────────────────────
-function DraftTab({ races, drafts, owners, drivers, reload }) {
+function DraftTab({ races, drafts, owners, drivers, payouts, reload }) {
   const [selRace, setSelRace] = useState(null);
   const [picks, setPicks] = useState({});
   const [saving, setSaving] = useState(false);
@@ -411,9 +411,33 @@ function DraftTab({ races, drafts, owners, drivers, reload }) {
   const race = races.find(r=>r.id===selRace);
   const existing = drafts.filter(d=>d.race_id===selRace);
 
+  // Determine who picks first:
+  // Round 1 → Steve (index 0)
+  // Round 2+ → loser of most recent non-tied race picks first
+  // Tie → look further back until a non-tie is found
+  const getFirstPickerIdx = (forRace) => {
+    if (!forRace || forRace.round === 1) return 0;
+    const prevRaces = races
+      .filter(r => r.round < forRace.round && r.results_updated)
+      .sort((a, b) => b.round - a.round);
+    for (const prev of prevRaces) {
+      const prevPayouts = payouts.filter(p => p.round === prev.round);
+      if (!prevPayouts.length) continue;
+      const isTie = prevPayouts.some(p => p.is_tie);
+      if (isTie) continue;
+      const loserPayout = prevPayouts.find(p => p.winnings === 0);
+      if (!loserPayout) continue;
+      const loserIdx = owners.findIndex(o => o.name === loserPayout.owner_name);
+      return loserIdx >= 0 ? loserIdx : 0;
+    }
+    return 0;
+  };
+
+  const firstPickerIdx = getFirstPickerIdx(race);
+
   const snakeOrder = [];
   for(let rnd=1;rnd<=8;rnd++) {
-    const seq = rnd%2===1 ? [0,1] : [1,0];
+    const seq = rnd%2===1 ? [firstPickerIdx, 1-firstPickerIdx] : [1-firstPickerIdx, firstPickerIdx];
     for(const ownerIdx of seq) snakeOrder.push({ pick:snakeOrder.length+1, round:rnd, ownerIdx });
   }
 
@@ -471,6 +495,13 @@ function DraftTab({ races, drafts, owners, drivers, reload }) {
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
             <h3 style={{fontSize:16,fontWeight:700}}>Draft Board — {race.name}</h3>
+            <div style={{fontSize:12,color:"#888",background:"#111118",border:"1px solid #222232",borderRadius:8,padding:"8px 14px",display:"inline-flex",alignItems:"center",gap:6}}>
+              🎯 <span style={{color:"#fff",fontWeight:600}}>{owners[firstPickerIdx]?.name}</span> picks first
+              {race.round === 1
+                ? <span style={{color:"#555"}}>(Round 1 default)</span>
+                : <span style={{color:"#555"}}>(lost previous race)</span>
+              }
+            </div>
             {existing.length>0&&<Badge color="#27AE60">{existing.length} picks saved</Badge>}
           </div>
           <Msg {...(msg??{type:"success",text:""})} />
@@ -731,7 +762,7 @@ export default function App() {
             {tab==="scoreboard" && <RaceCountdown races={races}/>}
             {tab==="scoreboard" && <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers}/>}
             {tab==="draft"      && <RaceCountdown races={races}/>}
-            {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} reload={reload}/>}
+            {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} reload={reload}/>}
             {tab==="results"    && <ResultsTab races={races} results={results} drivers={drivers} reload={reload}/>}
           </>
         )}
