@@ -33,7 +33,7 @@ function useData() {
         supabase.from("season_standings").select("*"),
         supabase.from("weekly_payouts").select("*").order("round"),
       ]);
-      setState({ owners,drivers,races,drafts,results,raceScores,standings,payouts,loading:false,error:null });
+      setState({ owners:owners??[],drivers:drivers??[],races:races??[],drafts:drafts??[],results:results??[],raceScores:raceScores??[],standings:standings??[],payouts:payouts??[],loading:false,error:null });
     } catch(err) {
       setState(s => ({ ...s, loading:false, error:err.message }));
     }
