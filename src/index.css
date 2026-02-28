@@ -1,0 +1,25 @@
+@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --navy:#0a0e1a;--navy-mid:#111827;--navy-lt:#1e2a3a;
+  --red:#e8002d;--red-dark:#b00022;--red-glow:rgba(232,0,45,0.25);
+  --gold:#d4a017;--gold-lt:#f5c842;
+  --white:#f0f4ff;--gray:#8899aa;--gray-lt:#ccd6e0;
+  --steve:#1a6fbf;--steve-lt:#d0e8ff;
+  --trevor:#b85c00;--trevor-lt:#ffe8cc;
+  --green:#00c46a;--border:rgba(255,255,255,0.08);
+}
+html,body{background:var(--navy);color:var(--white);font-family:'Exo 2',sans-serif;font-size:16px;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+#root{position:relative;z-index:1}
+button{font-family:'Exo 2',sans-serif;cursor:pointer;border:none;outline:none}
+select,input{font-family:'Exo 2',sans-serif}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--navy-mid)}
+::-webkit-scrollbar-thumb{background:var(--navy-lt);border-radius:3px}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.animate-fade-up{animation:fadeUp 0.4s ease both}
+.animate-fade-up-2{animation:fadeUp 0.4s 0.1s ease both}
+.animate-fade-up-3{animation:fadeUp 0.4s 0.2s ease both}
+.animate-fade-up-4{animation:fadeUp 0.4s 0.3s ease both}
