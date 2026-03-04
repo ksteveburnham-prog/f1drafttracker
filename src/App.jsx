@@ -35,8 +35,8 @@ const CONSTRUCTOR_LOGOS = {
   "Ferrari": ({ size=20 }) => (
     <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
       <rect width="32" height="32" rx="4" fill="#E8002D"/>
-      <rect x="13" y="6" width="6" height="20" fill="#FFC700"/>
-      <rect x="6" y="13" width="20" height="6" fill="#FFC700"/>
+      <path d="M17 6 C15 6 13 7 13 9 C13 10 13 11 14 12 C12 12 11 13 11 15 C11 17 12 18 12 20 L11 24 L14 24 L15 20 C15 20 16 21 18 21 C20 21 21 20 22 19 C23 18 23 17 22 16 C21 15 20 15 19 15 C20 14 21 13 21 11 C21 9 20 7 18 6 Z" fill="#FFC700"/>
+      <circle cx="16" cy="9" r="1.5" fill="#E8002D"/>
     </svg>
   ),
   "Aston Martin": ({ size=20 }) => (
