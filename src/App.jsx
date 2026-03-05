@@ -566,7 +566,11 @@ function DraftTab({ races, drafts, owners, drivers, payouts, reload }) {
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
         <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"1.5px",color:"#666"}}>Select Race Week</span>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {races.map(r=>(
+          {(() => {
+            const nextUpcoming = races.find(r => !r.results_updated);
+            const availableRaces = races.filter(r => r.results_updated || r.id === nextUpcoming?.id);
+            return availableRaces;
+          })().map(r=>(
             <button key={r.id} onClick={()=>{setSelRace(r.id);setPicks({});setMsg(null);}} style={{
               display:"flex",flexDirection:"column",alignItems:"center",
               background:selRace===r.id?(r.results_updated?"#0a1a0e":"#1a0808"):(r.results_updated?"#0a1a0e":"#111118"),
