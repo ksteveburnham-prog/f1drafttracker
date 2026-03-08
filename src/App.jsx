@@ -8,97 +8,47 @@ const CONSTRUCTOR_COLORS = {
   "Audi":"#BB0000","Cadillac":"#333F8C",
 };
 
-// Mini SVG logos for each constructor
-const CONSTRUCTOR_LOGOS = {
-  "McLaren": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#FF8000"/>
-      <path d="M4 20 Q16 8 28 20" stroke="white" strokeWidth="3.5" fill="none" strokeLinecap="round"/>
-    </svg>
-  ),
-  "Mercedes": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#00D2BE"/>
-      <circle cx="16" cy="16" r="9" stroke="white" strokeWidth="2" fill="none"/>
-      <line x1="16" y1="7" x2="16" y2="16" stroke="white" strokeWidth="2"/>
-      <line x1="16" y1="16" x2="9" y2="22" stroke="white" strokeWidth="2"/>
-      <line x1="16" y1="16" x2="23" y2="22" stroke="white" strokeWidth="2"/>
-    </svg>
-  ),
-  "Red Bull": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#3671C6"/>
-      <circle cx="11" cy="16" r="6" fill="#CC1E1E"/>
-      <circle cx="21" cy="16" r="6" fill="#FFC700"/>
-    </svg>
-  ),
-  "Ferrari": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#E8002D"/>
-      {/* Prancing horse - body */}
-      <path d="M18 24 L18 18 C20 17 22 15 22 13 C22 11 21 10 20 10 C20 8 19 7 18 7 C17 6 16 6 15 7 L14 8 C13 8 12 9 12 10 L13 12 C12 13 12 14 13 15 L13 18 L11 24 L14 24 L15 19 L17 19 L17 24 Z" fill="#FFC700"/>
-      {/* Head */}
-      <path d="M18 7 C19 6 21 6 21 8 C21 9 20 10 19 10 C18 10 17 9 17 8 Z" fill="#FFC700"/>
-      {/* Raised front leg */}
-      <path d="M13 15 L11 18 L12 19 L14 16 Z" fill="#FFC700"/>
-      {/* Tail */}
-      <path d="M18 17 C20 16 22 17 23 15 C22 17 21 19 18 18 Z" fill="#FFC700"/>
-    </svg>
-  ),
-  "Aston Martin": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#358C75"/>
-      <path d="M6 22 L16 10 L26 22" stroke="white" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-  "Alpine": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#0093CC"/>
-      <path d="M6 20 L12 12 L16 18 L20 12 L26 20" stroke="white" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  ),
-  "Williams": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#00A0DD"/>
-      <path d="M8 16 Q16 8 24 16 Q16 24 8 16Z" fill="white"/>
-    </svg>
-  ),
-  "Racing Bulls": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#1B2856"/>
-      <path d="M6 20 C8 12 14 10 16 16 C18 10 24 12 26 20" stroke="#6692FF" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
-    </svg>
-  ),
-  "Haas": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#1a1a1a"/>
-      <rect x="6" y="14" width="20" height="4" fill="white"/>
-      <rect x="6" y="8" width="8" height="4" fill="#E8002D"/>
-      <rect x="18" y="20" width="8" height="4" fill="#E8002D"/>
-    </svg>
-  ),
-  "Audi": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#BB0000"/>
-      <circle cx="10" cy="16" r="4" stroke="white" strokeWidth="2" fill="none"/>
-      <circle cx="16" cy="16" r="4" stroke="white" strokeWidth="2" fill="none"/>
-      <circle cx="22" cy="16" r="4" stroke="white" strokeWidth="2" fill="none"/>
-    </svg>
-  ),
-  "Cadillac": ({ size=20 }) => (
-    <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
-      <rect width="32" height="32" rx="4" fill="#333F8C"/>
-      <rect x="8" y="10" width="16" height="12" rx="1" stroke="white" strokeWidth="2" fill="none"/>
-      <line x1="8" y1="16" x2="24" y2="16" stroke="white" strokeWidth="2"/>
-      <line x1="16" y1="10" x2="16" y2="22" stroke="white" strokeWidth="2"/>
-    </svg>
-  ),
-};
+// Spicy performance emoji based on average finish position last race
+// 👑 Win  🚀 Podium  😤 P4-6  🥱 P7-10  🤡 P11-15  💩 P16-20  🔥 DNF  🏗️ No data
+function getConstructorEmoji(constructor, results, drivers) {
+  if (!results?.length || !drivers?.length) return "🏗️";
 
-function ConstructorLogo({ constructor, size=20 }) {
-  const Logo = CONSTRUCTOR_LOGOS[constructor];
-  if (!Logo) return <ConstructorDot constructor={constructor} size={size}/>;
-  return <Logo size={size}/>;
+  // Find the most recent race that has results
+  const racesWithResults = [...new Set(results.map(r => r.race_id))];
+  if (!racesWithResults.length) return "🏗️";
+  const lastRaceId = racesWithResults[racesWithResults.length - 1];
+
+  // Get all drivers for this constructor
+  const constructorDrivers = drivers.filter(d => d.constructor === constructor);
+  if (!constructorDrivers.length) return "🏗️";
+
+  // Get their results from the last race
+  const constructorResults = results.filter(r =>
+    r.race_id === lastRaceId &&
+    constructorDrivers.some(d => d.id === r.driver_id)
+  );
+  if (!constructorResults.length) return "🏗️";
+
+  // Average finish position (DNF = position 25 for scoring purposes)
+  const positions = constructorResults.map(r => r.finish_position ?? 25);
+  const avg = positions.reduce((a, b) => a + b, 0) / positions.length;
+
+  if (avg <= 1)  return "👑"; // Won
+  if (avg <= 3)  return "🚀"; // Podium
+  if (avg <= 6)  return "😤"; // Nearly there
+  if (avg <= 10) return "🥱"; // Mid
+  if (avg <= 15) return "🤡"; // Clown behavior
+  if (avg <= 20) return "💩"; // Dumpster fire
+  return "🔥";                // DNF chaos
+}
+
+function ConstructorLogo({ constructor, results, drivers, size=20 }) {
+  const emoji = getConstructorEmoji(constructor, results, drivers);
+  return (
+    <span style={{fontSize: size, lineHeight:1, flexShrink:0}} title={`${constructor} — last race performance`}>
+      {emoji}
+    </span>
+  );
 }
 
 // ── Data hook ─────────────────────────────────────────────────
@@ -249,12 +199,13 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
 
       const pos = result.finish_position;
       let base = 0;
-      if (pos === 1) base = 30;
-      else if (pos <= 3) base = 24;
-      else if (pos <= 6) base = 18;
-      else if (pos <= 10) base = 12;
-      else if (pos <= 15) base = 6;
-      else if (pos <= 20) base = 2;
+      if (pos && pos === 1) base = 30;
+      else if (pos && pos <= 3) base = 24;
+      else if (pos && pos <= 6) base = 18;
+      else if (pos && pos <= 10) base = 12;
+      else if (pos && pos <= 15) base = 6;
+      else if (pos && pos <= 20) base = 2;
+      // null or 0 = DNF, scores 0
 
       let bonus = 0;
       if (result.pole_position) bonus += 5;
@@ -312,7 +263,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
                       <div style={{flex:1,minWidth:120}}>
                         <div style={{fontWeight:600,fontSize:13}}>{driver.name}</div>
                         <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#666",marginTop:2}}>
-                          <ConstructorLogo constructor={driver.constructor}/>
+                          <ConstructorLogo constructor={driver.constructor} results={results} drivers={drivers}/>
                           {driver.constructor}
                           {constructorMatch && <span style={{color:"#D4AC0D",fontWeight:700,marginLeft:4}}>+15% 🏆</span>}
                         </div>
@@ -421,7 +372,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
             <div style={{flex:1}}>
               <div style={{fontSize:18,fontWeight:700}}>{s.owner_name}</div>
               <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#888",marginTop:4}}>
-                <ConstructorLogo constructor={s.constructor}/>
+                <ConstructorLogo constructor={s.constructor} results={results} drivers={drivers}/>
                 {s.constructor}
               </div>
             </div>
@@ -494,7 +445,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
 }
 
 // ── Draft tab ─────────────────────────────────────────────────
-function DraftTab({ races, drafts, owners, drivers, payouts, reload }) {
+function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) {
   const [selRace, setSelRace] = useState(null);
   const [picks, setPicks] = useState({});
   const [saving, setSaving] = useState(false);
@@ -638,7 +589,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, reload }) {
                         )}
                       </td>
                       <td style={tdStyle(ownerIdx)}>
-                        {selDriver&&<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}><ConstructorLogo constructor={selDriver.constructor}/>{selDriver.constructor}</span>}
+                        {selDriver&&<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}><ConstructorLogo constructor={selDriver.constructor} results={results} drivers={drivers}/>{selDriver.constructor}</span>}
                       </td>
                     </tr>
                   );
@@ -672,7 +623,7 @@ function ResultsTab({ races, results, drivers, reload }) {
     const f={};
     for(const d of drivers){
       const ex=results.find(r=>r.race_id===selRace&&r.driver_id===d.id);
-      f[d.id]={finish_position:ex?.finish_position??"",pole_position:ex?.pole_position??false,fastest_lap:ex?.fastest_lap??false,most_pos_gained:ex?.most_pos_gained??false,sprint_win:ex?.sprint_win??false,sprint_pole:ex?.sprint_pole??false};
+      f[d.id]={finish_position:ex?.finish_position??"",dnf:ex?.finish_position===null&&ex?.race_id?true:false,pole_position:ex?.pole_position??false,fastest_lap:ex?.fastest_lap??false,most_pos_gained:ex?.most_pos_gained??false,sprint_win:ex?.sprint_win??false,sprint_pole:ex?.sprint_pole??false};
     }
     setForm(f);
   }, [selRace, results]);
@@ -682,8 +633,8 @@ function ResultsTab({ races, results, drivers, reload }) {
   const save = async () => {
     if(!race) return;
     setSaving(true); setMsg(null);
-    const rows=Object.entries(form).filter(([,v])=>v.finish_position!=="").map(([dId,v])=>({
-      race_id:race.id,driver_id:dId,finish_position:Number(v.finish_position),
+    const rows=Object.entries(form).filter(([,v])=>v.finish_position!==""||v.dnf).map(([dId,v])=>({
+      race_id:race.id,driver_id:dId,finish_position:v.dnf?null:Number(v.finish_position),
       pole_position:v.pole_position,fastest_lap:v.fastest_lap,
       most_pos_gained:v.most_pos_gained,sprint_win:v.sprint_win,sprint_pole:v.sprint_pole,
     }));
@@ -751,6 +702,7 @@ function ResultsTab({ races, results, drivers, reload }) {
                   <th style={{...thStyle,textAlign:"left"}}>Driver</th>
                   <th style={{...thStyle,textAlign:"left"}}>Constructor</th>
                   <th style={thStyle}>Pos</th>
+                  <th style={thStyle} title="Did Not Finish">DNF</th>
                   <th style={thStyle} title="Pole Position">P</th>
                   <th style={thStyle} title="Fastest Lap">FL</th>
                   <th style={thStyle} title="Most Positions Gained">MPG</th>
@@ -765,12 +717,16 @@ function ResultsTab({ races, results, drivers, reload }) {
                       <td style={{...tdStyle,textAlign:"left",fontWeight:500,whiteSpace:"nowrap"}}>{d.name}</td>
                       <td style={{...tdStyle,textAlign:"left"}}>
                         <span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}>
-                          <ConstructorLogo constructor={d.constructor}/>{d.constructor}
+                          <ConstructorLogo constructor={d.constructor} results={results} drivers={drivers}/>{d.constructor}
                         </span>
                       </td>
                       <td style={tdStyle}>
+                        <input type="checkbox" checked={f.dnf??false} onChange={e=>{upd(d.id,"dnf",e.target.checked);if(e.target.checked)upd(d.id,"finish_position","");}} style={{width:16,height:16,cursor:"pointer",accentColor:"#E8002D"}}/>
+                      </td>
+                      <td style={tdStyle}>
                         <input type="number" min="1" max="20" value={f.finish_position??""} onChange={e=>upd(d.id,"finish_position",e.target.value)}
-                          style={{width:52,background:"#0a0a14",border:"1px solid #2a2a3a",color:"#e8e8f0",padding:"4px 8px",borderRadius:5,fontSize:13,textAlign:"center",outline:"none"}}/>
+                          disabled={f.dnf??false}
+                          style={{width:52,background:f.dnf?"#1a0808":"#0a0a14",border:`1px solid ${f.dnf?"#E8002D44":"#2a2a3a"}`,color:f.dnf?"#444":"#e8e8f0",padding:"4px 8px",borderRadius:5,fontSize:13,textAlign:"center",outline:"none",cursor:f.dnf?"not-allowed":"text"}}/>
                       </td>
                       {["pole_position","fastest_lap","most_pos_gained"].map(field=>(
                         <td key={field} style={tdStyle}>
@@ -858,7 +814,7 @@ export default function App() {
             {tab==="scoreboard" && <RaceCountdown races={races}/>}
             {tab==="scoreboard" && <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers}/>}
             {tab==="draft"      && <RaceCountdown races={races}/>}
-            {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} reload={reload}/>}
+            {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} results={results} reload={reload}/>}
             {tab==="results"    && <ResultsTab races={races} results={results} drivers={drivers} reload={reload}/>}
           </>
         )}
