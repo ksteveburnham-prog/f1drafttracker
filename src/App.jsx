@@ -648,7 +648,7 @@ function ResultsTab({ races, results, drivers, reload }) {
   const triggerFetch = async () => {
     setTriggering(true); setMsg(null);
     try {
-      const res=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-scores`,{
+      const res=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-scores-v2`,{
         method:"POST",
         headers:{"Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,"Content-Type":"application/json"},
         body:"{}",
@@ -701,8 +701,8 @@ function ResultsTab({ races, results, drivers, reload }) {
                 <tr>
                   <th style={{...thStyle,textAlign:"left"}}>Driver</th>
                   <th style={{...thStyle,textAlign:"left"}}>Constructor</th>
-                  <th style={thStyle}>Pos</th>
                   <th style={thStyle} title="Did Not Finish">DNF</th>
+                  <th style={thStyle}>Pos</th>
                   <th style={thStyle} title="Pole Position">P</th>
                   <th style={thStyle} title="Fastest Lap">FL</th>
                   <th style={thStyle} title="Most Positions Gained">MPG</th>
