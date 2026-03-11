@@ -140,10 +140,11 @@ function RaceCountdown({ races }) {
     return () => clearInterval(t);
   }, []);
 
-  const nextRace = races.find(r => !r.results_updated && r.race_date && new Date(r.race_date) >= now);
+  const nextRace = races.find(r => !r.results_updated && r.race_date && new Date(r.race_date.endsWith("Z") ? r.race_date : r.race_date + "Z") >= now);
   if (!nextRace) return null;
 
-  const raceDate = new Date(nextRace.race_date);
+  const raw = nextRace.race_date.endsWith("Z") ? nextRace.race_date : nextRace.race_date + "Z";
+  const raceDate = new Date(raw);
   const diffMs = raceDate - now;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -454,7 +455,8 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
                     <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#444",fontStyle:"italic"}}>
                       {race.race_date
                         ? (() => {
-                            const d = new Date(race.race_date);
+                            const raw = race.race_date.endsWith("Z") ? race.race_date : race.race_date + "Z";
+                            const d = new Date(raw);
                             return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
                               + " · "
                               + d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZoneName:"short"});
