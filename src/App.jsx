@@ -451,7 +451,17 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
                       <Flag round={race.round}/>{race.name}
                       {race.has_sprint&&<Badge color="#FF800044">S</Badge>}
                     </td>
-                    <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#333",fontStyle:"italic"}}>Upcoming</td>
+                    <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#444",fontStyle:"italic"}}>
+                      {race.race_date
+                        ? (() => {
+                            const d = new Date(race.race_date);
+                            return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
+                              + " · "
+                              + d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZoneName:"short"});
+                          })()
+                        : "Upcoming"
+                      }
+                    </td>
                   </tr>
                 ))}
               </tbody>
