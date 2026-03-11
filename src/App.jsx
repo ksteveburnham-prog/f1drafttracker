@@ -336,7 +336,7 @@ function Settlement({ standings, payouts }) {
 }
 
 // ── Scoreboard tab ────────────────────────────────────────────
-function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers }) {
+function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers, spoilerMode }) {
   const [breakdown, setBreakdown] = useState(null);
 
   const ownerNames = standings.map(s=>s.owner_name);
@@ -353,7 +353,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:24}}>
-      {breakdown && (
+      {breakdown && !spoilerMode && (
         <PointsBreakdownModal
           race={breakdown}
           results={results}
@@ -362,6 +362,17 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
           drivers={drivers}
           onClose={() => setBreakdown(null)}
         />
+      )}
+
+      {/* Spoiler shield notice */}
+      {spoilerMode && (
+        <div style={{background:"linear-gradient(135deg,#1a0f00,#0a0a0f)",border:"1px solid #FF800044",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
+          <span style={{fontSize:28}}>🙈</span>
+          <div>
+            <div style={{fontWeight:700,fontSize:15,color:"#FF8000",marginBottom:4}}>Spoiler Shield Active</div>
+            <div style={{fontSize:13,color:"#888"}}>Race scores and results are hidden. Toggle <strong style={{color:"#aaa"}}>SHOW SCORES</strong> in the header when you're ready.</div>
+          </div>
+        </div>
       )}
 
       {/* Standing cards */}
@@ -377,69 +388,78 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
               </div>
             </div>
             <div style={{textAlign:"right"}}>
-              <span style={{fontSize:28,fontWeight:900}}>{Math.round(Number(s.season_points))}</span>
-              <span style={{fontSize:12,color:"#666",marginLeft:2}}>pts</span>
+              {spoilerMode ? (
+                <span style={{fontSize:20,color:"#444"}}>——</span>
+              ) : (
+                <>
+                  <span style={{fontSize:28,fontWeight:900}}>{Math.round(Number(s.season_points))}</span>
+                  <span style={{fontSize:12,color:"#666",marginLeft:2}}>pts</span>
+                </>
+              )}
             </div>
           </div>
         ))}
       </div>
 
       {/* Race table */}
-      <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#E8002D",paddingBottom:8,borderBottom:"1px solid #222232"}}>Race-by-Race Results</div>
-      <div style={{overflowX:"auto",borderRadius:10,border:"1px solid #222232"}}>
-        <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
-          <thead>
-            <tr>
-              {["Race",...ownerNames,"Winner"].map(h=>(
-                <th key={h} style={{background:"#111118",padding:"12px 16px",textAlign:h==="Race"?"left":"center",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",borderBottom:"1px solid #222232"}}>{h}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {races.filter(r=>r.results_updated).map(race => {
-              const sc=byRound[race.round]??{};
-              const pts=ownerNames.map(o=>sc[o]??null);
-              const allHave=pts.every(p=>p!==null);
-              const maxPts=allHave?Math.max(...pts):null;
-              const isTie=allHave&&pts.every(p=>p===maxPts);
-              const winner=isTie?"Tie":ownerNames[pts.indexOf(maxPts)];
-              return (
-                <tr key={race.id}
-                  onClick={() => setBreakdown(race)}
-                  style={{cursor:"pointer"}}
-                  onMouseEnter={e => e.currentTarget.style.background="#16161f"}
-                  onMouseLeave={e => e.currentTarget.style.background=""}
-                >
-                  <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,fontWeight:500}}>
-                    <Flag round={race.round}/>{race.name}
-                    {race.has_sprint&&<Badge color="#FF8000">S</Badge>}
-                    <span style={{fontSize:10,color:"#444",marginLeft:4}}>🔍</span>
-                  </td>
-                  {ownerNames.map((o,i)=>(
-                    <td key={o} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:allHave&&pts[i]===maxPts&&!isTie?"#27AE60":"#e8e8f0"}}>
-                      {sc[o]!=null?Math.round(Number(sc[o])):"—"}
-                    </td>
+      {!spoilerMode && (
+        <>
+          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#E8002D",paddingBottom:8,borderBottom:"1px solid #222232"}}>Race-by-Race Results</div>
+          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid #222232"}}>
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
+              <thead>
+                <tr>
+                  {["Race",...ownerNames,"Winner"].map(h=>(
+                    <th key={h} style={{background:"#111118",padding:"12px 16px",textAlign:h==="Race"?"left":"center",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",borderBottom:"1px solid #222232"}}>{h}</th>
                   ))}
-                  <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:isTie?"#888":"#fff"}}>
-                    {isTie?"🤝 Tie":winner}
-                  </td>
-
                 </tr>
-              );
-            })}
-            {races.filter(r=>!r.results_updated).map(race=>(
-              <tr key={race.id}>
-                <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,color:"#444",fontWeight:500}}>
-                  <Flag round={race.round}/>{race.name}
-                  {race.has_sprint&&<Badge color="#FF800044">S</Badge>}
-                </td>
-                <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#333",fontStyle:"italic"}}>Upcoming</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div style={{fontSize:11,color:"#444",fontStyle:"italic"}}>💡 Tap any completed race row to see the full points breakdown</div>
+              </thead>
+              <tbody>
+                {races.filter(r=>r.results_updated).map(race => {
+                  const sc=byRound[race.round]??{};
+                  const pts=ownerNames.map(o=>sc[o]??null);
+                  const allHave=pts.every(p=>p!==null);
+                  const maxPts=allHave?Math.max(...pts):null;
+                  const isTie=allHave&&pts.every(p=>p===maxPts);
+                  const winner=isTie?"Tie":ownerNames[pts.indexOf(maxPts)];
+                  return (
+                    <tr key={race.id}
+                      onClick={() => setBreakdown(race)}
+                      style={{cursor:"pointer"}}
+                      onMouseEnter={e => e.currentTarget.style.background="#16161f"}
+                      onMouseLeave={e => e.currentTarget.style.background=""}
+                    >
+                      <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,fontWeight:500}}>
+                        <Flag round={race.round}/>{race.name}
+                        {race.has_sprint&&<Badge color="#FF8000">S</Badge>}
+                        <span style={{fontSize:10,color:"#444",marginLeft:4}}>🔍</span>
+                      </td>
+                      {ownerNames.map((o,i)=>(
+                        <td key={o} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:allHave&&pts[i]===maxPts&&!isTie?"#27AE60":"#e8e8f0"}}>
+                          {sc[o]!=null?Math.round(Number(sc[o])):"—"}
+                        </td>
+                      ))}
+                      <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:isTie?"#888":"#fff"}}>
+                        {isTie?"🤝 Tie":winner}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {races.filter(r=>!r.results_updated).map(race=>(
+                  <tr key={race.id}>
+                    <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,color:"#444",fontWeight:500}}>
+                      <Flag round={race.round}/>{race.name}
+                      {race.has_sprint&&<Badge color="#FF800044">S</Badge>}
+                    </td>
+                    <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#333",fontStyle:"italic"}}>Upcoming</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div style={{fontSize:11,color:"#444",fontStyle:"italic"}}>💡 Tap any completed race row to see the full points breakdown</div>
+        </>
+      )}
     </div>
   );
 }
@@ -757,6 +777,15 @@ function ResultsTab({ races, results, drivers, reload }) {
 export default function App() {
   const { owners,drivers,races,drafts,results,raceScores,standings,payouts,loading,error,reload } = useData();
   const [tab, setTab] = useState("scoreboard");
+  const [spoilerMode, setSpoilerMode] = useState(() => {
+    try { return localStorage.getItem("spoilerMode") === "true"; } catch { return false; }
+  });
+
+  const toggleSpoiler = () => setSpoilerMode(prev => {
+    const next = !prev;
+    try { localStorage.setItem("spoilerMode", String(next)); } catch {}
+    return next;
+  });
 
   return (
     <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:"#0a0a0f",color:"#e8e8f0",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
@@ -777,19 +806,36 @@ export default function App() {
 
       {/* Header */}
       <header style={{background:"linear-gradient(135deg,#0d0d1a 0%,#1a0a0a 100%)",borderBottom:"2px solid #E8002D33",padding:"0 16px"}}>
-        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:56}}>
-          <div style={{display:"flex",alignItems:"center",gap:10}}>
+        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,gap:8}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
             <span style={{fontSize:24}}>🏎</span>
             <h1 className="header-title" style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>F1 Fantasy <span style={{color:"#E8002D"}}>2026</span></h1>
           </div>
-          <span style={{fontSize:11,fontWeight:600,letterSpacing:1,background:"#E8002D22",color:"#E8002D",padding:"4px 10px",borderRadius:20,border:"1px solid #E8002D44",textTransform:"uppercase",whiteSpace:"nowrap"}}>
-            Steve vs Trevor
-          </span>
+          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <button
+              onClick={toggleSpoiler}
+              title={spoilerMode ? "Spoiler Shield ON — scores hidden. Click to reveal." : "Spoiler Shield OFF — click to hide scores."}
+              style={{
+                display:"flex",alignItems:"center",gap:6,
+                fontSize:11,fontWeight:700,letterSpacing:0.5,
+                background: spoilerMode ? "#FF800033" : "#22222288",
+                color: spoilerMode ? "#FF8000" : "#555",
+                padding:"4px 10px",borderRadius:20,
+                border: spoilerMode ? "1px solid #FF800066" : "1px solid #33333366",
+                cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.2s",
+              }}
+            >
+              {spoilerMode ? "🙈 SPOILERS HIDDEN" : "👁 SHOW SCORES"}
+            </button>
+            <span style={{fontSize:11,fontWeight:600,letterSpacing:1,background:"#E8002D22",color:"#E8002D",padding:"4px 10px",borderRadius:20,border:"1px solid #E8002D44",textTransform:"uppercase",whiteSpace:"nowrap"}}>
+              Steve vs Trevor
+            </span>
+          </div>
         </div>
       </header>
 
       {/* Settlement */}
-      {!loading&&!error&&<Settlement standings={standings} payouts={payouts}/>}
+      {!loading&&!error&&!spoilerMode&&<Settlement standings={standings} payouts={payouts}/>}
 
       {/* Tabs */}
       <nav style={{display:"flex",gap:2,background:"#111118",borderBottom:"1px solid #222232",padding:"0 16px",overflowX:"auto"}}>
@@ -812,7 +858,7 @@ export default function App() {
         {!loading&&!error&&(
           <>
             {tab==="scoreboard" && <RaceCountdown races={races}/>}
-            {tab==="scoreboard" && <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers}/>}
+            {tab==="scoreboard" && <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers} spoilerMode={spoilerMode}/>}
             {tab==="draft"      && <RaceCountdown races={races}/>}
             {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} results={results} reload={reload}/>}
             {tab==="results"    && <ResultsTab races={races} results={results} drivers={drivers} reload={reload}/>}
