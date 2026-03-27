@@ -627,11 +627,16 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
               </tbody>
             </table>
           </div>
-          {Object.keys(picks).length>0&&(
-            <button onClick={save} disabled={saving} style={{alignSelf:"flex-start",background:"#E8002D",color:"white",border:"none",padding:"12px 28px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",opacity:saving?0.5:1}}>
-              {saving?"Saving…":`Save ${Object.keys(picks).length} Pick${Object.keys(picks).length>1?"s":""}`}
+          <div style={{display:"flex",alignItems:"center",gap:12}}>
+            {Object.keys(picks).length>0&&(
+              <button onClick={save} disabled={saving} style={{background:"#E8002D",color:"white",border:"none",padding:"12px 28px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",opacity:saving?0.5:1}}>
+                {saving?"Saving…":`Save ${Object.keys(picks).length} Pick${Object.keys(picks).length>1?"s":""}`}
+              </button>
+            )}
+            <button onClick={() => window.location.reload(true)} title="Hard refresh" style={{background:"#111118",color:"#888",border:"1px solid #222232",padding:"12px 20px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer"}}>
+              🔄 Refresh
             </button>
-          )}
+          </div>
         </div>
       )}
     </div>
@@ -822,21 +827,6 @@ export default function App() {
             <h1 className="header-title" style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>F1 Fantasy <span style={{color:"#E8002D"}}>2026</span></h1>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            <button
-              onClick={() => window.location.reload(true)}
-              title="Hard refresh — reload all data"
-              style={{
-                display:"flex",alignItems:"center",gap:6,
-                fontSize:11,fontWeight:700,letterSpacing:0.5,
-                background:"#22222288",
-                color:"#555",
-                padding:"4px 10px",borderRadius:20,
-                border:"1px solid #33333366",
-                cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.2s",
-              }}
-            >
-              🔄 REFRESH
-            </button>
             <button
               onClick={toggleSpoiler}
               title={spoilerMode ? "Spoiler Shield ON — scores hidden. Click to reveal." : "Spoiler Shield OFF — click to hide scores."}
