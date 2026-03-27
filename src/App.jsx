@@ -140,10 +140,10 @@ function RaceCountdown({ races }) {
     return () => clearInterval(t);
   }, []);
 
-  const nextRace = races.find(r => !r.results_updated && r.race_date && new Date(r.race_date.replace('+00:00', 'Z')) >= now);
+  const nextRace = races.find(r => !r.results_updated && r.race_date && new Date(r.race_date) >= now);
   if (!nextRace) return null;
 
-  const raceDate = new Date(nextRace.race_date.replace('+00:00', 'Z'));
+  const raceDate = new Date(nextRace.race_date);
   const diffMs = raceDate - now;
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
   const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
@@ -454,8 +454,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
                     <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#444",fontStyle:"italic"}}>
                       {race.race_date
                         ? (() => {
-                            const raw = race.race_date.replace('+00:00', 'Z');
-                            const d = new Date(raw);
+                            const d = new Date(race.race_date);
                             return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
                               + " · "
                               + d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZoneName:"short"});
@@ -823,6 +822,21 @@ export default function App() {
             <h1 className="header-title" style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>F1 Fantasy <span style={{color:"#E8002D"}}>2026</span></h1>
           </div>
           <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
+            <button
+              onClick={() => window.location.reload(true)}
+              title="Hard refresh — reload all data"
+              style={{
+                display:"flex",alignItems:"center",gap:6,
+                fontSize:11,fontWeight:700,letterSpacing:0.5,
+                background:"#22222288",
+                color:"#555",
+                padding:"4px 10px",borderRadius:20,
+                border:"1px solid #33333366",
+                cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.2s",
+              }}
+            >
+              🔄 REFRESH
+            </button>
             <button
               onClick={toggleSpoiler}
               title={spoilerMode ? "Spoiler Shield ON — scores hidden. Click to reveal." : "Spoiler Shield OFF — click to hide scores."}
