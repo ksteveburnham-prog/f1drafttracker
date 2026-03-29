@@ -205,7 +205,6 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
       else if (pos && pos <= 10) base = 12;
       else if (pos && pos <= 15) base = 6;
       else if (pos && pos <= 20) base = 2;
-      // null or 0 = DNF, scores 0
 
       let bonus = 0;
       if (result.pole_position) bonus += 5;
@@ -484,10 +483,6 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
   const race = races.find(r=>r.id===selRace);
   const existing = drafts.filter(d=>d.race_id===selRace);
 
-  // Determine who picks first:
-  // Round 1 → Steve (index 0)
-  // Round 2+ → loser of most recent non-tied race picks first
-  // Tie → look further back until a non-tie is found
   const getFirstPickerIdx = (forRace) => {
     if (!forRace || forRace.round === 1) return 0;
     const prevRaces = races
@@ -680,18 +675,32 @@ function ResultsTab({ races, results, drivers, reload }) {
     else { setMsg({type:"success",text:"Results saved!"}); reload(); }
   };
 
+  // ── FIXED: always sends explicit round number, never relies on auto-detect ──
   const triggerFetch = async () => {
+    if (!race) {
+      setMsg({ type:"error", text:"Select a race first, then click Auto-fetch." });
+      return;
+    }
     setTriggering(true); setMsg(null);
     try {
-      const res=await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-scores-v2`,{
-        method:"POST",
-        headers:{"Authorization":`Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,"Content-Type":"application/json"},
-        body:"{}",
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-scores-v2`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ round: race.round }),
       });
-      const data=await res.json();
-      setMsg({type:res.ok?"success":"error",text:res.ok?`Updated: ${data.race} (${data.results_upserted} drivers)`:data.error});
-      if(res.ok) reload();
-    } catch(e){ setMsg({type:"error",text:e.message}); }
+      const data = await res.json();
+      if (res.ok) {
+        setMsg({ type:"success", text:`✅ Updated: ${data.race} — ${data.results_upserted} drivers, bonuses: pole=${data.bonuses_detected?.pole ?? "?"}, FL=${data.bonuses_detected?.fastest_lap ?? "?"}` });
+        reload();
+      } else {
+        setMsg({ type:"error", text: data.error ?? JSON.stringify(data) });
+      }
+    } catch(e) {
+      setMsg({ type:"error", text: e.message });
+    }
     setTriggering(false);
   };
 
@@ -700,16 +709,10 @@ function ResultsTab({ races, results, drivers, reload }) {
 
   return (
     <div style={{display:"flex",flexDirection:"column",gap:24}}>
-      <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-        <button onClick={triggerFetch} disabled={triggering} style={{background:"#1a0a0a",border:"1px solid #E8002D66",color:"#E8002D",padding:"10px 20px",borderRadius:8,fontSize:14,fontWeight:600,cursor:"pointer",opacity:triggering?0.5:1}}>
-          {triggering?"Fetching…":"🔄 Auto-fetch Latest Results"}
-        </button>
-        <span style={{fontSize:12,color:"#666"}}>Pulls from OpenF1 API and sends Slack notification</span>
-      </div>
-      {msg&&<Msg {...msg}/>}
 
+      {/* Race picker — now ABOVE auto-fetch so round is always selected first */}
       <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"1.5px",color:"#666"}}>Or enter manually</span>
+        <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"1.5px",color:"#666"}}>Select Race</span>
         <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
           {races.map(r=>(
             <button key={r.id} onClick={()=>{setSelRace(r.id);setMsg(null);}} style={{
@@ -727,9 +730,27 @@ function ResultsTab({ races, results, drivers, reload }) {
         </div>
       </div>
 
+      {/* Auto-fetch — disabled until a race is selected */}
+      <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
+        <button
+          onClick={triggerFetch}
+          disabled={triggering || !race}
+          style={{background:"#1a0a0a",border:`1px solid ${race?"#E8002D66":"#33333366"}`,color:race?"#E8002D":"#444",padding:"10px 20px",borderRadius:8,fontSize:14,fontWeight:600,cursor:race?"pointer":"not-allowed",opacity:triggering?0.5:1}}
+        >
+          {triggering
+            ? "Fetching…"
+            : race
+              ? `🔄 Auto-fetch R${race.round} — ${race.name}`
+              : "🔄 Auto-fetch (select a race first)"}
+        </button>
+        <span style={{fontSize:12,color:"#666"}}>Pulls from OpenF1 API and sends Slack notification</span>
+      </div>
+
+      {msg&&<Msg {...msg}/>}
+
       {race && (
         <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <h3 style={{fontSize:16,fontWeight:700}}>{race.name} — Results Entry</h3>
+          <h3 style={{fontSize:16,fontWeight:700}}>{race.name} — Manual Results Entry</h3>
           <div style={{overflowX:"auto",borderRadius:10,border:"1px solid #222232"}}>
             <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
               <thead>
