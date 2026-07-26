@@ -169,6 +169,24 @@ function useToast() {
   return [toast, setToast];
 }
 
+// Keeps a value in localStorage so a reload (or a tab you navigated away
+// from and back to) lands you back where you were, not on a blank default.
+function usePersistedState(key, initialValue) {
+  const [value, setValue] = useState(() => {
+    try {
+      const v = localStorage.getItem(key);
+      return v !== null ? v : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+  const setPersisted = useCallback((next) => {
+    setValue(next);
+    try { localStorage.setItem(key, next); } catch {}
+  }, [key]);
+  return [value, setPersisted];
+}
+
 // ── Small shared components ──────────────────────────────────────
 function Spinner() {
   return (
@@ -603,7 +621,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
 
 // ── Draft tab ─────────────────────────────────────────────────
 function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) {
-  const [selRace, setSelRace] = useState(null);
+  const [selRace, setSelRace] = usePersistedState("f1app.draftRace", "");
   const [picks, setPicks] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useToast();
@@ -780,7 +798,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
 
 // ── Results tab ───────────────────────────────────────────────
 function ResultsTab({ races, results, drivers, reload }) {
-  const [selRace, setSelRace] = useState(null);
+  const [selRace, setSelRace] = usePersistedState("f1app.resultsRace", "");
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useToast();
@@ -932,7 +950,7 @@ function ResultsTab({ races, results, drivers, reload }) {
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
   const { owners, drivers, races, drafts, results, raceScores, standings, payouts, loading, error, reload } = useData();
-  const [tab, setTab] = useState("scoreboard");
+  const [tab, setTab] = usePersistedState("f1app.tab", "scoreboard");
   const [spoilerMode, setSpoilerMode] = useState(() => {
     try { return localStorage.getItem("spoilerMode") === "true"; } catch { return false; }
   });
