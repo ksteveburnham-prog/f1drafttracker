@@ -1,51 +1,86 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./lib/supabase";
 
-const CONSTRUCTOR_COLORS = {
-  "McLaren":"#FF8000","Mercedes":"#00D2BE","Red Bull":"#3671C6",
-  "Ferrari":"#E8002D","Aston Martin":"#358C75","Alpine":"#0093CC",
-  "Williams":"#64C4FF","Racing Bulls":"#6692FF","Haas":"#B6BABD",
-  "Audi":"#BB0000","Cadillac":"#333F8C",
+// ── Design tokens (PRNDL — Unofficial F1 Design System) ────────
+const C = {
+  bg: "rgb(11,11,11)",
+  surface: "rgb(21,21,29)",
+  surfaceRaised: "rgb(26,26,36)",
+  hairline: "rgb(38,38,43)",
+  rowLine: "rgb(30,30,38)",
+  rowLine2: "rgb(32,32,40)",
+  borderStrong: "rgb(48,48,55)",
+  textPrimary: "rgb(254,254,254)",
+  textBody: "rgb(247,244,241)",
+  textSecondary: "rgb(208,208,213)",
+  textMuted: "rgb(170,171,177)",
+  textFaint: "rgb(96,96,102)",
+  red: "rgb(225,6,0)",
+  redHover: "rgb(169,5,0)",
+  redLight: "rgb(233,68,64)",
+  gold: "rgb(255,209,0)",
+  green: "rgb(39,152,62)",
+  greenLight: "rgb(93,178,110)",
+  orange: "rgb(227,97,0)",
+  orangeLight: "rgb(234,136,64)",
 };
+
+// Owner identity accents — Steve is always the red seat, Trevor the orange
+// seat, independent of which constructor they've drafted this season.
+const OWNER_STYLE = [
+  { color: "rgb(225,6,0)", chip: "rgba(225,6,0,.16)", text: "rgb(240,130,128)", row: "rgba(225,6,0,.05)" },
+  { color: "rgb(227,97,0)", chip: "rgba(227,97,0,.16)", text: "rgb(241,176,128)", row: "rgba(227,97,0,.05)" },
+];
+
+const CONSTRUCTOR_COLORS = {
+  "McLaren": "rgb(227,97,0)", "Ferrari": "rgb(113,3,0)", "Red Bull": "rgb(64,71,255)",
+  "Mercedes": "rgb(44,95,28)", "Aston Martin": "rgb(29,114,47)", "Alpine": "rgb(119,44,79)",
+  "Williams": "rgb(0,5,128)", "Racing Bulls": "rgb(128,133,255)", "Haas": "rgb(170,171,177)",
+  "Audi": "rgb(88,189,55)", "Cadillac": "rgb(0,3,64)",
+};
+
+const labelStyle = { fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textMuted };
+
+function anim(kind, delay = 0) {
+  if (kind === "pop") return `popIn .5s cubic-bezier(.2,.9,.25,1) ${delay}ms both`;
+  if (kind === "fade") return `fadeIn .3s ease ${delay}ms both`;
+  if (kind === "slide") return `slideIn .35s cubic-bezier(.2,.9,.25,1) ${delay}ms both`;
+  return `fadeUp .5s cubic-bezier(.2,.8,.2,1) ${delay}ms both`;
+}
 
 // Spicy performance emoji based on average finish position last race
 // 👑 Win  🚀 Podium  😤 P4-6  🥱 P7-10  🤡 P11-15  💩 P16-20  🔥 DNF  🏗️ No data
 function getConstructorEmoji(constructor, results, drivers) {
   if (!results?.length || !drivers?.length) return "🏗️";
 
-  // Find the most recent race that has results
   const racesWithResults = [...new Set(results.map(r => r.race_id))];
   if (!racesWithResults.length) return "🏗️";
   const lastRaceId = racesWithResults[racesWithResults.length - 1];
 
-  // Get all drivers for this constructor
   const constructorDrivers = drivers.filter(d => d.constructor === constructor);
   if (!constructorDrivers.length) return "🏗️";
 
-  // Get their results from the last race
   const constructorResults = results.filter(r =>
-    r.race_id === lastRaceId &&
-    constructorDrivers.some(d => d.id === r.driver_id)
+    r.race_id === lastRaceId && constructorDrivers.some(d => d.id === r.driver_id)
   );
   if (!constructorResults.length) return "🏗️";
 
-  // Average finish position (DNF = position 25 for scoring purposes)
   const positions = constructorResults.map(r => r.finish_position ?? 25);
   const avg = positions.reduce((a, b) => a + b, 0) / positions.length;
 
-  if (avg <= 1)  return "👑"; // Won
-  if (avg <= 3)  return "🚀"; // Podium
-  if (avg <= 6)  return "😤"; // Nearly there
-  if (avg <= 10) return "🥱"; // Mid
-  if (avg <= 15) return "🤡"; // Clown behavior
-  if (avg <= 20) return "💩"; // Dumpster fire
-  return "🔥";                // DNF chaos
+  if (avg <= 1) return "👑";
+  if (avg <= 3) return "🚀";
+  if (avg <= 6) return "😤";
+  if (avg <= 10) return "🥱";
+  if (avg <= 15) return "🤡";
+  if (avg <= 20) return "💩";
+  return "🔥";
 }
 
-function ConstructorLogo({ constructor, results, drivers, size=20 }) {
+function ConstructorLogo({ constructor, results, drivers, size = 15 }) {
   const emoji = getConstructorEmoji(constructor, results, drivers);
   return (
-    <span style={{fontSize: size, lineHeight:1, flexShrink:0}} title={`${constructor} — last race performance`}>
+    <span style={{ fontSize: size, lineHeight: 1, flexShrink: 0 }} title={`${constructor} — last race performance`}>
       {emoji}
     </span>
   );
@@ -54,18 +89,18 @@ function ConstructorLogo({ constructor, results, drivers, size=20 }) {
 // ── Data hook ─────────────────────────────────────────────────
 function useData() {
   const [state, setState] = useState({
-    owners:[], drivers:[], races:[], drafts:[],
-    results:[], raceScores:[], standings:[], payouts:[],
-    loading:true, error:null,
+    owners: [], drivers: [], races: [], drafts: [],
+    results: [], raceScores: [], standings: [], payouts: [],
+    loading: true, error: null,
   });
 
   const load = useCallback(async () => {
-    setState(s => ({ ...s, loading:true, error:null }));
+    setState(s => ({ ...s, loading: true, error: null }));
     try {
       const [
-        {data:owners},{data:drivers},{data:races},
-        {data:drafts},{data:results},
-        {data:raceScores},{data:standings},{data:payouts},
+        { data: owners }, { data: drivers }, { data: races },
+        { data: drafts }, { data: results },
+        { data: raceScores }, { data: standings }, { data: payouts },
       ] = await Promise.all([
         supabase.from("owners").select("*").order("name"),
         supabase.from("drivers").select("*").order("name"),
@@ -76,9 +111,9 @@ function useData() {
         supabase.from("season_standings").select("*"),
         supabase.from("weekly_payouts").select("*").order("round"),
       ]);
-      setState({ owners:owners??[],drivers:drivers??[],races:races??[],drafts:drafts??[],results:results??[],raceScores:raceScores??[],standings:standings??[],payouts:payouts??[],loading:false,error:null });
-    } catch(err) {
-      setState(s => ({ ...s, loading:false, error:err.message }));
+      setState({ owners: owners ?? [], drivers: drivers ?? [], races: races ?? [], drafts: drafts ?? [], results: results ?? [], raceScores: raceScores ?? [], standings: standings ?? [], payouts: payouts ?? [], loading: false, error: null });
+    } catch (err) {
+      setState(s => ({ ...s, loading: false, error: err.message }));
     }
   }, []);
 
@@ -86,111 +121,264 @@ function useData() {
 
   useEffect(() => {
     const ch = supabase.channel("db-changes")
-      .on("postgres_changes",{ event:"*", schema:"public" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public" }, () => load())
       .subscribe();
     return () => supabase.removeChannel(ch);
   }, [load]);
 
-  return { ...state, reload:load };
+  return { ...state, reload: load };
 }
 
-// ── Small components ──────────────────────────────────────────
-function ConstructorDot({ constructor, size=10 }) {
-  return <span style={{ display:"inline-block", width:size, height:size, borderRadius:"50%", background:CONSTRUCTOR_COLORS[constructor]??"#888", flexShrink:0 }} />;
+// ── Shared small hooks ──────────────────────────────────────────
+function useCountUp(deps) {
+  const [progress, setProgress] = useState(0);
+  useEffect(() => {
+    let raf;
+    const start = performance.now(), dur = 950;
+    setProgress(0);
+    const step = (t) => {
+      const e = Math.min(1, (t - start) / dur);
+      setProgress(1 - Math.pow(1 - e, 3));
+      if (e < 1) raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps);
+  return progress;
 }
 
-function Flag({ round }) {
-  const colors = ["#E8002D","#FF8000","#3671C6","#00D2BE","#358C75","#0093CC"];
-  const c = colors[round % colors.length];
-  return (
-    <svg width={18} height={18} viewBox="0 0 20 20" fill="none" style={{flexShrink:0}}>
-      <rect x="2" y="2" width="2" height="16" fill="#555" rx="1"/>
-      <path d="M4 2 L16 5 L4 8 Z" fill={c}/>
-    </svg>
-  );
+function useTick(intervalMs = 1000) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(t);
+  }, [intervalMs]);
+  return now;
 }
 
-function Badge({ children, color="#E8002D" }) {
-  return <span style={{fontSize:10,fontWeight:700,padding:"2px 6px",borderRadius:4,background:color+"22",color,border:`1px solid ${color}44`,textTransform:"uppercase",letterSpacing:"0.5px"}}>{children}</span>;
+function useToast() {
+  const [toast, setToastState] = useState(null);
+  const timerRef = useRef(null);
+  const setToast = useCallback((text, kind = "success") => {
+    clearTimeout(timerRef.current);
+    setToastState({ text, kind });
+    timerRef.current = setTimeout(() => setToastState(null), 4000);
+  }, []);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+  return [toast, setToast];
 }
 
+// ── Small shared components ──────────────────────────────────────
 function Spinner() {
   return (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:300,gap:16}}>
-      <div style={{width:40,height:40,border:"3px solid #222",borderTopColor:"#E8002D",borderRadius:"50%",animation:"spin 0.8s linear infinite"}}/>
-      <p style={{color:"#666",fontSize:14}}>Loading race data…</p>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: 300, gap: 16 }}>
+      <div style={{ width: 40, height: 40, border: `3px solid ${C.hairline}`, borderTopColor: C.red, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <p style={{ color: C.textFaint, fontSize: 14 }}>Loading race data…</p>
     </div>
   );
 }
 
-function Msg({ type, text }) {
-  if(!text) return null;
-  const styles = {
-    success:{background:"#0a1a0e",border:"1px solid #27AE6044",color:"#27AE60"},
-    error:  {background:"#1a0808",border:"1px solid #E8002D44",color:"#E8002D"},
-  };
-  return <div style={{padding:"10px 16px",borderRadius:8,fontSize:14,...styles[type]}}>{text}</div>;
-}
-
-// ── Race Countdown ─────────────────────────────────────────────
-function RaceCountdown({ races }) {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
-  }, []);
-
-  const nextRace = races.find(r => !r.results_updated && r.race_date && new Date(r.race_date) >= now);
-  if (!nextRace) return null;
-
-  const raceDate = new Date(nextRace.race_date);
-  const diffMs = raceDate - now;
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHrs = Math.floor((diffMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-
-  const urgency = diffDays === 0 ? "#E8002D" : diffDays <= 3 ? "#FF8000" : "#27AE60";
-
+function Toast({ toast }) {
+  if (!toast) return null;
+  const err = toast.kind === "error";
   return (
     <div style={{
-      background:`linear-gradient(135deg, ${urgency}11, #0a0a0f)`,
-      border:`1px solid ${urgency}33`,
-      borderRadius:12, padding:"14px 20px",
-      display:"flex", alignItems:"center", gap:16, flexWrap:"wrap",
-      marginBottom:8,
-    }}>
-      <span style={{fontSize:24}}>🏁</span>
-      <div style={{flex:1}}>
-        <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",marginBottom:2}}>Next Race</div>
-        <div style={{fontSize:16,fontWeight:700}}>
-          Round {nextRace.round} — {nextRace.name}
-          {nextRace.has_sprint && <span style={{marginLeft:8}}><Badge color="#FF8000">Sprint</Badge></span>}
+      padding: "12px 18px", borderRadius: 10, fontSize: 14,
+      background: err ? "rgba(225,6,0,.1)" : "rgba(39,152,62,.1)",
+      border: `1px solid ${err ? "rgba(225,6,0,.4)" : "rgba(39,152,62,.4)"}`,
+      color: err ? C.redLight : C.greenLight,
+      animation: anim("slide"),
+    }}>{toast.text}</div>
+  );
+}
+
+// ── Header ────────────────────────────────────────────────────
+function Header({ spoilerMode, toggleSpoiler }) {
+  return (
+    <div style={{ position: "sticky", top: 0, zIndex: 40, background: "rgba(21,21,29,.92)", backdropFilter: "blur(8px)", WebkitBackdropFilter: "blur(8px)", borderBottom: "1px solid rgba(225,6,0,.28)" }}>
+      <div className="shell-inner" style={{ maxWidth: 1180, margin: "0 auto", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ width: 9, height: 9, borderRadius: "50%", background: C.red, display: "inline-block", animation: "pulseDot 2.4s ease infinite" }} />
+          <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 18, letterSpacing: "0.1em", color: C.textPrimary }}>
+            F1 FANTASY <span style={{ color: C.red }}>2026</span>
+          </span>
         </div>
-      </div>
-      <div style={{textAlign:"right"}}>
-        {diffDays === 0 ? (
-          <div style={{fontSize:22,fontWeight:900,color:urgency}}>TODAY 🚨</div>
-        ) : (
-          <div>
-            <span style={{fontSize:28,fontWeight:900,color:urgency}}>{diffDays}</span>
-            <span style={{fontSize:13,color:"#888",marginLeft:4}}>days {diffHrs}h</span>
-          </div>
-        )}
-        <div style={{fontSize:11,color:"#555",marginTop:2}}>
-          {raceDate.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <button
+            onClick={toggleSpoiler}
+            title={spoilerMode ? "Spoiler Shield ON — scores hidden. Click to reveal." : "Spoiler Shield OFF — click to hide scores."}
+            style={{
+              display: "flex", alignItems: "center", gap: 7,
+              background: spoilerMode ? "rgba(227,97,0,.16)" : "rgba(255,255,255,.05)",
+              border: `1px solid ${spoilerMode ? "rgba(227,97,0,.45)" : C.borderStrong}`,
+              color: spoilerMode ? C.orangeLight : C.textMuted,
+              padding: "7px 14px", borderRadius: 20, cursor: "pointer",
+              fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.09em", textTransform: "uppercase",
+              transition: "background .25s,border-color .25s,color .25s",
+            }}
+          >
+            <span style={{ fontSize: 13 }}>{spoilerMode ? "🙈" : "👁"}</span>{spoilerMode ? "Spoilers hidden" : "Show scores"}
+          </button>
+          <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.09em", textTransform: "uppercase", background: "rgba(225,6,0,.13)", color: C.redLight, padding: "7px 14px", borderRadius: 20, border: "1px solid rgba(225,6,0,.32)", whiteSpace: "nowrap" }}>
+            Steve vs Trevor
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-// ── Points Breakdown Modal ─────────────────────────────────────
-function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose }) {
+// ── Settlement banner ─────────────────────────────────────────
+function Settlement({ standings, payouts, progress }) {
+  if (!standings?.length || !payouts?.length) return null;
+  const weeklyWins = {};
+  for (const p of payouts) {
+    if (!p.is_tie && p.winnings > 0) weeklyWins[p.owner_name] = (weeklyWins[p.owner_name] ?? 0) + p.winnings;
+  }
+  const s0 = standings[0], s1 = standings[1];
+  if (!s0 || !s1) return null;
+  const ptsDiff = Math.abs(Number(s0.season_points) - Number(s1.season_points));
+  const ptsWinner = Number(s0.season_points) >= Number(s1.season_points) ? s0.owner_name : s1.owner_name;
+  const totals = {};
+  for (const s of standings) {
+    totals[s.owner_name] = (weeklyWins[s.owner_name] ?? 0) + (ptsWinner === s.owner_name ? ptsDiff : 0);
+  }
+  const net = (totals[s0.owner_name] ?? 0) - (totals[s1.owner_name] ?? 0);
+  const debtor = net < 0 ? s0.owner_name : s1.owner_name;
+  const creditor = net < 0 ? s1.owner_name : s0.owner_name;
+  const amount = Math.abs(net);
+
+  return (
+    <div style={{ position: "relative", overflow: "hidden", background: "linear-gradient(100deg,rgb(23,1,0),rgb(21,21,29) 60%)", borderBottom: "1px solid rgba(225,6,0,.24)" }}>
+      <div style={{ position: "absolute", top: 0, bottom: 0, left: 0, width: "38%", background: "linear-gradient(100deg,transparent,rgba(225,6,0,.16),transparent)", animation: "sheen 6s linear infinite" }} />
+      <div className="shell-inner" style={{ position: "relative", maxWidth: 1180, margin: "0 auto", padding: "18px 28px", display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 26 }}>🏁</span>
+        <div style={{ flex: 1, minWidth: 260, display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textMuted }}>Season Settlement</span>
+          <span style={{ fontSize: 17, color: C.textSecondary }}>
+            <b style={{ color: C.textPrimary }}>{debtor}</b> owes <b style={{ color: C.textPrimary }}>{creditor}</b>{" "}
+            <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 23, color: C.gold, letterSpacing: "0.02em" }}>
+              ${Math.round(amount * progress).toLocaleString()}
+            </span>
+          </span>
+        </div>
+        <div style={{ display: "flex", gap: 28 }}>
+          {standings.map(s => (
+            <div key={s.owner_id} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+              <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textMuted }}>{s.owner_name}</span>
+              <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 17, color: C.textPrimary }}>
+                ${Math.round((totals[s.owner_name] ?? 0) * progress).toLocaleString()}
+              </span>
+            </div>
+          ))}
+        </div>
+        <span style={{ fontSize: 11, color: C.textFaint, width: "100%" }}>$20 per weekly win · purse rolls over on ties · $1 per point of season margin</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Tab nav ───────────────────────────────────────────────────
+const TABS = [
+  { id: "scoreboard", label: "Scoreboard", emoji: "🏆" },
+  { id: "draft", label: "Draft", emoji: "📋" },
+  { id: "results", label: "Results", emoji: "🏁" },
+];
+
+function TabNav({ tab, setTab }) {
+  const idx = TABS.findIndex(t => t.id === tab);
+  return (
+    <div style={{ background: "rgba(21,21,29,.7)", borderBottom: `1px solid ${C.hairline}` }}>
+      <div className="shell-inner" style={{ position: "relative", maxWidth: 1180, margin: "0 auto", display: "flex", overflowX: "auto", WebkitOverflowScrolling: "touch" }}>
+        <div style={{ position: "absolute", bottom: 0, left: 28, width: 170, height: 3, background: C.red, transform: `translateX(${idx * 170}px)`, transition: "transform .42s cubic-bezier(.65,0,.35,1)" }} />
+        {TABS.map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            style={{ width: 170, flexShrink: 0, background: "none", border: "none", cursor: "pointer", padding: "17px 0", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: tab === t.id ? C.textPrimary : C.textFaint, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", transition: "color .25s" }}
+          >
+            <span style={{ fontSize: 15 }}>{t.emoji}</span>{t.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Next race countdown card ──────────────────────────────────
+function NextRaceCard({ races }) {
+  const now = useTick(1000);
+  const nextRace = races.find(r => !r.results_updated);
+  if (!nextRace) return null;
+
+  const target = nextRace.race_date ? new Date(nextRace.race_date).getTime() : null;
+  const diff = target ? Math.max(0, target - now) : 0;
+  const dd = Math.floor(diff / 86400000);
+  const hh = Math.floor((diff % 86400000) / 3600000);
+  const mm = Math.floor((diff % 3600000) / 60000);
+  const ss = Math.floor((diff % 60000) / 1000);
+  const urgentColor = dd === 0 ? C.red : dd <= 3 ? C.orange : C.green;
+  const pad = n => String(n).padStart(2, "0");
+  const cells = [
+    { label: "Days", value: pad(dd), color: urgentColor },
+    { label: "Hrs", value: pad(hh), color: C.textPrimary },
+    { label: "Min", value: pad(mm), color: C.textPrimary },
+    { label: "Sec", value: pad(ss), color: C.textMuted },
+  ];
+  const tint = dd <= 3 ? "rgba(225,6,0,.12)" : "rgba(39,152,62,.1)";
+  const border = dd <= 3 ? "rgba(225,6,0,.3)" : "rgba(39,152,62,.28)";
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 22, flexWrap: "wrap", background: `linear-gradient(100deg,${tint},rgb(21,21,29) 55%)`, border: `1px solid ${border}`, borderRadius: 16, padding: "20px 26px", animation: anim("up", 0) }}>
+      <span style={{ fontSize: 28 }}>🏁</span>
+      <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", gap: 4 }}>
+        <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textMuted }}>Next Race</span>
+        <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 19, color: C.textPrimary, letterSpacing: "0.03em" }}>
+          ROUND {nextRace.round} — {nextRace.name}
+        </span>
+        <span style={{ fontSize: 12, color: C.textFaint }}>
+          {target ? new Date(target).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "Date TBD"}
+        </span>
+      </div>
+      {nextRace.has_sprint && (
+        <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: C.orange, background: "rgba(227,97,0,.14)", border: "1px solid rgba(227,97,0,.35)", padding: "5px 11px", borderRadius: 6 }}>
+          ⚡ Sprint
+        </span>
+      )}
+      <div style={{ display: "flex", gap: 10 }}>
+        {cells.map(c => (
+          <div key={c.label} style={{ minWidth: 66, background: "rgba(0,0,0,.35)", border: `1px solid ${C.hairline}`, borderRadius: 12, padding: "10px 8px", display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+            <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 22, color: c.color, lineHeight: 1 }}>{c.value}</span>
+            <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 8, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textFaint }}>{c.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function computeRecord(ownerName, payouts, roundsScored) {
+  const wins = payouts.filter(p => p.owner_name === ownerName && !p.is_tie && p.winnings > 0).length;
+  const tieRounds = new Set(payouts.filter(p => p.is_tie).map(p => p.round));
+  return `${wins} race win${wins === 1 ? "" : "s"} · ${tieRounds.size} tie${tieRounds.size === 1 ? "" : "s"} · ${roundsScored} round${roundsScored === 1 ? "" : "s"} scored`;
+}
+
+// ── Points breakdown modal ─────────────────────────────────────
+function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts, onClose }) {
   if (!race) return null;
 
   const raceResults = results.filter(r => r.race_id === race.id);
   const raceDrafts = drafts.filter(d => d.race_id === race.id);
+  const racePayouts = payouts.filter(p => p.round === race.round);
+  const isTie = racePayouts.some(p => p.is_tie);
+  const winnerPayout = racePayouts.find(p => !p.is_tie && p.winnings > 0);
+  const purseAmount = winnerPayout?.winnings ?? racePayouts[0]?.winnings ?? 20;
+  const winnerText = racePayouts.length
+    ? (isTie ? "🤝 Tie — purse rolls over to next race" : (winnerPayout ? `${winnerPayout.owner_name} takes the weekly purse` : ""))
+    : "";
 
-  const ownerBreakdowns = owners.map(owner => {
+  const ownerBreakdowns = owners.map((owner, oi) => {
     const ownerDrafts = raceDrafts.filter(d => d.owner_id === owner.id);
     const driverRows = ownerDrafts.map(draft => {
       const result = raceResults.find(r => r.driver_id === draft.driver_id);
@@ -206,6 +394,13 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
       else if (pos && pos <= 15) base = 6;
       else if (pos && pos <= 20) base = 2;
 
+      const chips = [{ label: pos ? `P${pos} → ${base}` : "DNF → 0", bg: "rgb(38,38,43)", color: "rgb(208,208,213)" }];
+      if (result.pole_position) chips.push({ label: "Pole +5", bg: "rgba(64,71,255,.16)", color: "rgb(128,133,255)" });
+      if (result.fastest_lap) chips.push({ label: "FL +3", bg: "rgba(227,97,0,.16)", color: "rgb(234,136,64)" });
+      if (result.most_pos_gained) chips.push({ label: "MPG +2", bg: "rgba(39,152,62,.16)", color: "rgb(93,178,110)" });
+      if (result.sprint_win) chips.push({ label: "SW +5", bg: "rgba(225,6,0,.16)", color: "rgb(233,68,64)" });
+      if (result.sprint_pole) chips.push({ label: "SP +3", bg: "rgba(88,189,55,.16)", color: "rgb(130,205,105)" });
+
       let bonus = 0;
       if (result.pole_position) bonus += 5;
       if (result.fastest_lap) bonus += 3;
@@ -217,257 +412,190 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, onClose 
       const multiplier = constructorMatch ? 1.15 : 1.0;
       const total = Math.round(base * multiplier + bonus);
 
-      return { driver, result, base, bonus, multiplier, total, constructorMatch };
+      return { driver, chips, total, constructorMatch };
     }).filter(Boolean);
 
     const totalPts = driverRows.reduce((s, r) => s + r.total, 0);
-    return { owner, driverRows, totalPts };
+    return { owner, oi, driverRows, totalPts };
   });
 
   return (
-    <div style={{
-      position:"fixed", inset:0, background:"rgba(0,0,0,0.85)",
-      zIndex:1000, display:"flex", alignItems:"center", justifyContent:"center",
-      padding:16,
-    }} onClick={onClose}>
-      <div style={{
-        background:"#111118", border:"1px solid #222232", borderRadius:16,
-        width:"100%", maxWidth:680, maxHeight:"85vh", overflowY:"auto",
-        padding:24,
-      }} onClick={e => e.stopPropagation()}>
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:20}}>
-          <h2 style={{fontSize:18,fontWeight:700}}>
-            <Flag round={race.round}/>&nbsp; {race.name} — Points Breakdown
-          </h2>
-          <button onClick={onClose} style={{background:"none",border:"none",color:"#666",fontSize:22,cursor:"pointer",lineHeight:1}}>✕</button>
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.82)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: anim("fade") }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: C.surface, border: `1px solid ${C.hairline}`, borderRadius: 20, width: "100%", maxWidth: 760, maxHeight: "84vh", overflowY: "auto", padding: 28, animation: anim("pop", 40) }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, gap: 12 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.red }}>Points Breakdown</span>
+            <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 20, color: C.textPrimary, letterSpacing: "0.03em" }}>{race.name} — Round {race.round}</span>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: `1px solid ${C.borderStrong}`, color: C.textMuted, width: 34, height: 34, borderRadius: "50%", fontSize: 15, cursor: "pointer", flexShrink: 0 }}>✕</button>
         </div>
 
-        <div style={{display:"flex",flexDirection:"column",gap:20}}>
-          {ownerBreakdowns.map(({ owner, driverRows, totalPts }) => (
-            <div key={owner.id} style={{background:"#0a0a14",borderRadius:12,padding:16,border:"1px solid #222232"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}>
-                <div style={{fontSize:15,fontWeight:700}}>{owner.name}</div>
-                <div style={{fontSize:20,fontWeight:900,color:"#E8002D"}}>{Math.round(totalPts)} pts</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+          {ownerBreakdowns.map(({ owner, oi, driverRows, totalPts }) => (
+            <div key={owner.id} style={{ background: C.surfaceRaised, border: `1px solid ${C.hairline}`, borderRadius: 14, padding: 18, animation: anim("up", oi * 90) }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 10, fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 15, color: C.textPrimary }}>
+                  <span style={{ width: 9, height: 9, borderRadius: "50%", background: OWNER_STYLE[oi]?.color ?? C.textFaint }} />{owner.name}
+                </span>
+                <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 20, color: C.red }}>{Math.round(totalPts)} pts</span>
               </div>
               {driverRows.length === 0 ? (
-                <div style={{color:"#444",fontSize:13,fontStyle:"italic"}}>No results yet</div>
+                <div style={{ color: C.textFaint, fontSize: 13, fontStyle: "italic" }}>No results yet</div>
               ) : (
-                <div style={{display:"flex",flexDirection:"column",gap:8}}>
-                  {driverRows.map(({ driver, result, base, bonus, multiplier, total, constructorMatch }) => (
-                    <div key={driver.id} style={{
-                      background:"#111118", borderRadius:8, padding:"10px 14px",
-                      display:"flex", alignItems:"center", gap:12, flexWrap:"wrap",
-                      border: constructorMatch ? "1px solid #D4AC0D33" : "1px solid #1a1a28",
-                    }}>
-                      <div style={{flex:1,minWidth:120}}>
-                        <div style={{fontWeight:600,fontSize:13}}>{driver.name}</div>
-                        <div style={{display:"flex",alignItems:"center",gap:4,fontSize:11,color:"#666",marginTop:2}}>
-                          <ConstructorLogo constructor={driver.constructor} results={results} drivers={drivers}/>
-                          {driver.constructor}
-                          {constructorMatch && <span style={{color:"#D4AC0D",fontWeight:700,marginLeft:4}}>+15% 🏆</span>}
-                        </div>
-                      </div>
-                      <div style={{display:"flex",gap:6,flexWrap:"wrap",fontSize:11}}>
-                        <span style={{background:"#1a1a28",padding:"2px 8px",borderRadius:4,color:"#aaa"}}>
-                          P{result.finish_position} → {base}pts
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  {driverRows.map(({ driver, total, chips, constructorMatch }, ri) => (
+                    <div key={driver.id} style={{ background: C.surface, border: `1px solid ${constructorMatch ? "rgba(255,209,0,.28)" : "rgb(32,32,40)"}`, borderRadius: 10, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", animation: anim("up", 60 + ri * 40) }}>
+                      <div style={{ flex: 1, minWidth: 150, display: "flex", flexDirection: "column", gap: 3 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody }}>{driver.name}</span>
+                        <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textFaint }}>
+                          <ConstructorLogo constructor={driver.constructor} results={results} drivers={drivers} size={13} />{driver.constructor}
+                          {constructorMatch && <b style={{ color: C.gold, marginLeft: 4 }}>+15% 🏆</b>}
                         </span>
-                        {result.pole_position && <span style={{background:"#3671C622",color:"#6692FF",padding:"2px 8px",borderRadius:4}}>Pole +5</span>}
-                        {result.fastest_lap && <span style={{background:"#FF800022",color:"#FF8000",padding:"2px 8px",borderRadius:4}}>FL +3</span>}
-                        {result.most_pos_gained && <span style={{background:"#27AE6022",color:"#27AE60",padding:"2px 8px",borderRadius:4}}>MPG +2</span>}
-                        {result.sprint_win && <span style={{background:"#E8002D22",color:"#E8002D",padding:"2px 8px",borderRadius:4}}>SW +5</span>}
-                        {result.sprint_pole && <span style={{background:"#00D2BE22",color:"#00D2BE",padding:"2px 8px",borderRadius:4}}>SP +3</span>}
                       </div>
-                      <div style={{fontWeight:800,fontSize:15,color:"#fff",minWidth:50,textAlign:"right"}}>
-                        {Math.round(total)}
+                      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                        {chips.map((ch, ci) => (
+                          <span key={ci} style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.03em", background: ch.bg, color: ch.color, padding: "3px 9px", borderRadius: 6 }}>{ch.label}</span>
+                        ))}
                       </div>
+                      <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 15, color: C.textPrimary, minWidth: 44, textAlign: "right" }}>{total}</span>
                     </div>
                   ))}
                 </div>
               )}
             </div>
           ))}
+
+          {winnerText && (
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "rgba(255,209,0,.07)", border: "1px solid rgba(255,209,0,.25)", borderRadius: 12, gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 13, color: C.textSecondary }}>{winnerText}</span>
+              <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 17, color: C.gold }}>${purseAmount}</span>
+            </div>
+          )}
         </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Settlement banner ─────────────────────────────────────────
-function Settlement({ standings, payouts }) {
-  if(!standings?.length || !payouts?.length) return null;
-  const weeklyWins = {};
-  for(const p of payouts) {
-    if(!p.is_tie && p.winnings > 0) weeklyWins[p.owner_name] = (weeklyWins[p.owner_name]??0)+p.winnings;
-  }
-  const s0=standings[0], s1=standings[1];
-  if(!s0||!s1) return null;
-  const ptsDiff = Math.abs(Number(s0.season_points)-Number(s1.season_points));
-  const ptsWinner = Number(s0.season_points)>=Number(s1.season_points)?s0.owner_name:s1.owner_name;
-  const totals = {};
-  for(const s of standings) {
-    totals[s.owner_name] = (weeklyWins[s.owner_name]??0) + (ptsWinner===s.owner_name ? ptsDiff : 0);
-  }
-  const net = (totals[s0.owner_name]??0)-(totals[s1.owner_name]??0);
-  const debtor   = net<0 ? s0.owner_name : s1.owner_name;
-  const creditor = net<0 ? s1.owner_name : s0.owner_name;
-  const amount   = Math.abs(net);
-  const allSquare = amount===0;
-
-  return (
-    <div style={{background:allSquare?"linear-gradient(135deg,#051a0a,#0f0f1a)":"linear-gradient(135deg,#1a0505,#0f0f1a)",borderBottom:`1px solid ${allSquare?"#27AE6033":"#E8002D33"}`,padding:"16px 24px",display:"flex",alignItems:"center",gap:20,flexWrap:"wrap"}}>
-      <div style={{fontSize:28}}>🏁</div>
-      <div style={{flex:1,fontSize:18,fontWeight:600}}>
-        {allSquare
-          ? "🤝 All Square — No Money Owed"
-          : <><span style={{color:"#fff",fontWeight:700}}>{debtor}</span> owes <span style={{color:"#fff",fontWeight:700}}>{creditor}</span> <span style={{color:"#D4AC0D",fontSize:22,fontWeight:900}}>${amount.toLocaleString()}</span></>
-        }
-      </div>
-      <div style={{display:"flex",gap:24}}>
-        {standings.map(s => (
-          <div key={s.owner_id} style={{display:"flex",flexDirection:"column",alignItems:"center"}}>
-            <span style={{fontSize:11,textTransform:"uppercase",letterSpacing:1,color:"#888"}}>{s.owner_name}</span>
-            <span style={{fontSize:18,fontWeight:700}}>${(totals[s.owner_name]??0).toLocaleString()}</span>
-          </div>
-        ))}
       </div>
     </div>
   );
 }
 
 // ── Scoreboard tab ────────────────────────────────────────────
-function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers, spoilerMode }) {
+function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers, spoilerMode, progress, onReveal }) {
   const [breakdown, setBreakdown] = useState(null);
 
-  const ownerNames = standings.map(s=>s.owner_name);
+  const ownerNames = standings.map(s => s.owner_name);
   const byRound = {};
-  for(const rs of raceScores) {
-    if(!byRound[rs.round]) byRound[rs.round]={};
-    byRound[rs.round][rs.owner_name]=Number(rs.total_points);
-  }
-  const payoutByRound = {};
-  for(const p of payouts) {
-    if(!payoutByRound[p.round]) payoutByRound[p.round]={};
-    payoutByRound[p.round][p.owner_name]=p;
-  }
+  for (const rs of raceScores) { if (!byRound[rs.round]) byRound[rs.round] = {}; byRound[rs.round][rs.owner_name] = Number(rs.total_points); }
+  const roundsScored = races.filter(r => r.results_updated).length;
+  const colTemplate = `1fr repeat(${ownerNames.length},120px) 150px`;
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:24}}>
-      {breakdown && !spoilerMode && (
-        <PointsBreakdownModal
-          race={breakdown}
-          results={results}
-          drafts={drafts}
-          owners={owners}
-          drivers={drivers}
-          onClose={() => setBreakdown(null)}
-        />
+    <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+      {breakdown && (
+        <PointsBreakdownModal race={breakdown} results={results} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} onClose={() => setBreakdown(null)} />
       )}
 
-      {/* Spoiler shield notice */}
+      <NextRaceCard races={races} />
+
       {spoilerMode && (
-        <div style={{background:"linear-gradient(135deg,#1a0f00,#0a0a0f)",border:"1px solid #FF800044",borderRadius:12,padding:"16px 20px",display:"flex",alignItems:"center",gap:14}}>
-          <span style={{fontSize:28}}>🙈</span>
-          <div>
-            <div style={{fontWeight:700,fontSize:15,color:"#FF8000",marginBottom:4}}>Spoiler Shield Active</div>
-            <div style={{fontSize:13,color:"#888"}}>Race scores and results are hidden. Toggle <strong style={{color:"#aaa"}}>SHOW SCORES</strong> in the header when you're ready.</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, background: "linear-gradient(100deg,rgb(23,10,0),rgb(21,21,29) 60%)", border: "1px solid rgba(227,97,0,.4)", borderRadius: 16, padding: "18px 24px", flexWrap: "wrap", animation: anim("up", 70) }}>
+          <span style={{ fontSize: 28 }}>🙈</span>
+          <div style={{ flex: 1, minWidth: 200, display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 14, color: C.orange, letterSpacing: "0.04em" }}>SPOILER SHIELD ACTIVE</span>
+            <span style={{ fontSize: 13, color: C.textMuted }}>Season scores, payouts and results are hidden. Toggle <b style={{ color: C.textSecondary }}>Show Scores</b> in the header when you're ready.</span>
           </div>
+          <button onClick={onReveal} style={{ background: C.red, border: "none", borderRadius: 20, padding: "11px 22px", color: "#fff", fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.07em", textTransform: "uppercase", cursor: "pointer" }}>Reveal Scores</button>
         </div>
       )}
 
-      {/* Standing cards */}
-      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(260px,1fr))",gap:16}}>
-        {standings.map((s,i) => (
-          <div key={s.owner_id} style={{background:i===0?"#1a0808":"#111118",border:`1px solid ${i===0?"#E8002D66":"#222232"}`,borderRadius:12,padding:20,display:"flex",alignItems:"center",gap:16}}>
-            <div style={{fontSize:32,fontWeight:900,color:i===0?"#E8002D44":"#333",width:36}}>{i+1}</div>
-            <div style={{flex:1}}>
-              <div style={{fontSize:18,fontWeight:700}}>{s.owner_name}</div>
-              <div style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#888",marginTop:4}}>
-                <ConstructorLogo constructor={s.constructor} results={results} drivers={drivers}/>
-                {s.constructor}
+      <div className="standings-grid">
+        {standings.map((s, i) => {
+          const leader = i === 0;
+          return (
+            <div key={s.owner_id} style={{ position: "relative", overflow: "hidden", background: leader ? "linear-gradient(120deg,rgba(225,6,0,.11),rgb(21,21,29) 60%)" : C.surface, border: `1px solid ${leader ? "rgba(225,6,0,.4)" : C.hairline}`, borderRadius: 16, padding: "24px 26px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap", animation: anim("up", 60 + i * 80) }}>
+              <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 900, fontSize: 56, lineHeight: 1, color: leader ? "rgba(225,6,0,.35)" : C.hairline }}>{i + 1}</span>
+              <div style={{ flex: 1, minWidth: 140, display: "flex", flexDirection: "column", gap: 5 }}>
+                <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 20, color: C.textPrimary, letterSpacing: "0.03em" }}>{s.owner_name}</span>
+                <span style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 12, color: C.textMuted }}>
+                  <ConstructorLogo constructor={s.constructor} results={results} drivers={drivers} />{s.constructor}
+                </span>
+                <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textFaint }}>
+                  {computeRecord(s.owner_name, payouts, roundsScored)}
+                </span>
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 2 }}>
+                {spoilerMode ? (
+                  <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 34, color: C.hairline }}>——</span>
+                ) : (
+                  <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 34, color: leader ? C.gold : C.textPrimary }}>{Math.round(Number(s.season_points) * progress)}</span>
+                )}
+                <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textFaint }}>Season pts</span>
               </div>
             </div>
-            <div style={{textAlign:"right"}}>
-              {spoilerMode ? (
-                <span style={{fontSize:20,color:"#444"}}>——</span>
-              ) : (
-                <>
-                  <span style={{fontSize:28,fontWeight:900}}>{Math.round(Number(s.season_points))}</span>
-                  <span style={{fontSize:12,color:"#666",marginLeft:2}}>pts</span>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Race table */}
       {!spoilerMode && (
-        <>
-          <div style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:2,color:"#E8002D",paddingBottom:8,borderBottom:"1px solid #222232"}}>Race-by-Race Results</div>
-          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid #222232"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
-              <thead>
-                <tr>
-                  {["Race",...ownerNames,"Winner"].map(h=>(
-                    <th key={h} style={{background:"#111118",padding:"12px 16px",textAlign:h==="Race"?"left":"center",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",borderBottom:"1px solid #222232"}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {races.filter(r=>r.results_updated).map(race => {
-                  const sc=byRound[race.round]??{};
-                  const pts=ownerNames.map(o=>sc[o]??null);
-                  const allHave=pts.every(p=>p!==null);
-                  const maxPts=allHave?Math.max(...pts):null;
-                  const isTie=allHave&&pts.every(p=>p===maxPts);
-                  const winner=isTie?"Tie":ownerNames[pts.indexOf(maxPts)];
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, animation: anim("up", 140) }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: C.red, whiteSpace: "nowrap" }}>Race by Race</span>
+            <span style={{ flex: 1, height: 1, background: C.hairline }} />
+            <span style={{ fontSize: 11, color: C.textFaint, fontStyle: "italic", whiteSpace: "nowrap" }}>Click a completed race for the breakdown</span>
+          </div>
+          <div style={{ border: `1px solid ${C.hairline}`, borderRadius: 14, overflow: "hidden", background: "rgba(21,21,29,.6)" }}>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 560 }}>
+                <div style={{ display: "grid", gridTemplateColumns: colTemplate, padding: "12px 20px", background: C.surfaceRaised, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textMuted }}>
+                  <span>Race</span>
+                  {ownerNames.map(n => <span key={n} style={{ textAlign: "center" }}>{n}</span>)}
+                  <span style={{ textAlign: "center" }}>Winner</span>
+                </div>
+                {races.map((race, i) => {
+                  const done = race.results_updated;
+                  const sc = byRound[race.round] ?? {};
+                  const pts = ownerNames.map(o => sc[o] ?? null);
+                  const allHave = pts.every(p => p !== null);
+                  const maxPts = allHave ? Math.max(...pts) : null;
+                  const isTie = allHave && pts.every(p => p === maxPts);
+                  const winnerIdx = allHave && !isTie ? pts.indexOf(maxPts) : null;
+                  const winnerName = isTie ? "🤝 Tie" : (winnerIdx != null ? ownerNames[winnerIdx] : null);
+                  const marker = done ? (isTie ? C.hairline : (OWNER_STYLE[winnerIdx]?.color ?? C.hairline)) : C.hairline;
                   return (
-                    <tr key={race.id}
-                      onClick={() => setBreakdown(race)}
-                      style={{cursor:"pointer"}}
-                      onMouseEnter={e => e.currentTarget.style.background="#16161f"}
-                      onMouseLeave={e => e.currentTarget.style.background=""}
+                    <div
+                      key={race.id}
+                      onClick={done ? () => setBreakdown(race) : undefined}
+                      style={{ display: "grid", gridTemplateColumns: colTemplate, alignItems: "center", padding: "13px 20px", borderTop: `1px solid ${C.rowLine2}`, cursor: done ? "pointer" : "default", opacity: done ? 1 : 0.55, transition: "background .2s", animation: anim("up", 40 + i * 30) }}
+                      onMouseEnter={done ? (e => e.currentTarget.style.background = "rgba(255,255,255,.035)") : undefined}
+                      onMouseLeave={done ? (e => e.currentTarget.style.background = "") : undefined}
                     >
-                      <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,fontWeight:500}}>
-                        <Flag round={race.round}/>{race.name}
-                        {race.has_sprint&&<Badge color="#FF8000">S</Badge>}
-                        <span style={{fontSize:10,color:"#444",marginLeft:4}}>🔍</span>
-                      </td>
-                      {ownerNames.map((o,i)=>(
-                        <td key={o} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:allHave&&pts[i]===maxPts&&!isTie?"#27AE60":"#e8e8f0"}}>
-                          {sc[o]!=null?Math.round(Number(sc[o])):"—"}
-                        </td>
+                      <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: done ? C.textBody : C.textFaint, fontWeight: 600 }}>
+                        <span style={{ width: 3, height: 22, borderRadius: 2, background: marker, flexShrink: 0 }} />
+                        <span style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: C.textFaint, width: 26, flexShrink: 0 }}>R{race.round}</span>
+                        {race.name}
+                        {race.has_sprint && <span style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.06em", color: C.orange, background: "rgba(227,97,0,.14)", border: "1px solid rgba(227,97,0,.3)", padding: "1px 5px", borderRadius: 4 }}>SPRINT</span>}
+                      </span>
+                      {ownerNames.map((o, oi) => (
+                        <span key={o} style={{ textAlign: "center", fontFamily: "Orbitron,sans-serif", fontSize: 14, fontWeight: 700, color: done ? (allHave && pts[oi] === maxPts && !isTie ? C.greenLight : C.textSecondary) : C.textFaint }}>
+                          {done ? (sc[o] != null ? Math.round(Number(sc[o])) : "—") : ""}
+                        </span>
                       ))}
-                      <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",textAlign:"center",fontWeight:600,color:isTie?"#888":"#fff"}}>
-                        {isTie?"🤝 Tie":winner}
-                      </td>
-                    </tr>
+                      <span style={{ textAlign: "center", fontSize: 12, fontWeight: 700, color: done ? (isTie ? C.textMuted : C.greenLight) : C.textFaint }}>
+                        {done ? winnerName : (race.race_date ? new Date(race.race_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—")}
+                      </span>
+                    </div>
                   );
                 })}
-                {races.filter(r=>!r.results_updated).map(race=>(
-                  <tr key={race.id}>
-                    <td style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",display:"flex",alignItems:"center",gap:8,color:"#444",fontWeight:500}}>
-                      <Flag round={race.round}/>{race.name}
-                      {race.has_sprint&&<Badge color="#FF800044">S</Badge>}
-                    </td>
-                    <td colSpan={ownerNames.length+2} style={{padding:"10px 16px",borderBottom:"1px solid #1a1a28",color:"#444",fontStyle:"italic"}}>
-                      {race.race_date
-                        ? (() => {
-                            const d = new Date(race.race_date);
-                            return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})
-                              + " · "
-                              + d.toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit",timeZoneName:"short"});
-                          })()
-                        : "Upcoming"
-                      }
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                <div style={{ display: "grid", gridTemplateColumns: colTemplate, alignItems: "center", padding: "15px 20px", background: C.surfaceRaised, borderTop: `2px solid ${C.hairline}` }}>
+                  <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textMuted }}>Season total</span>
+                  {ownerNames.map(o => {
+                    const st = standings.find(s => s.owner_name === o);
+                    return <span key={o} style={{ textAlign: "center", fontFamily: "Orbitron,sans-serif", fontSize: 16, fontWeight: 800, color: C.gold }}>{st ? Math.round(Number(st.season_points)) : "—"}</span>;
+                  })}
+                  <span />
+                </div>
+              </div>
+            </div>
           </div>
-          <div style={{fontSize:11,color:"#444",fontStyle:"italic"}}>💡 Tap any completed race row to see the full points breakdown</div>
-        </>
+        </div>
       )}
     </div>
   );
@@ -478,10 +606,10 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
   const [selRace, setSelRace] = useState(null);
   const [picks, setPicks] = useState({});
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
+  const [toast, setToast] = useToast();
 
-  const race = races.find(r=>r.id===selRace);
-  const existing = drafts.filter(d=>d.race_id===selRace);
+  const race = races.find(r => r.id === selRace);
+  const existing = drafts.filter(d => d.race_id === selRace);
 
   const getFirstPickerIdx = (forRace) => {
     if (!forRace || forRace.round === 1) return 0;
@@ -504,135 +632,147 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
   const firstPickerIdx = getFirstPickerIdx(race);
 
   const snakeOrder = [];
-  for(let rnd=1;rnd<=8;rnd++) {
-    const seq = rnd%2===1 ? [firstPickerIdx, 1-firstPickerIdx] : [1-firstPickerIdx, firstPickerIdx];
-    for(const ownerIdx of seq) snakeOrder.push({ pick:snakeOrder.length+1, round:rnd, ownerIdx });
+  for (let rnd = 1; rnd <= 8; rnd++) {
+    const seq = rnd % 2 === 1 ? [firstPickerIdx, 1 - firstPickerIdx] : [1 - firstPickerIdx, firstPickerIdx];
+    for (const ownerIdx of seq) snakeOrder.push({ pick: snakeOrder.length + 1, round: rnd, ownerIdx });
   }
 
   const usedIds = [
-    ...Object.values(picks).map(p=>p.driverId).filter(Boolean),
-    ...existing.map(d=>d.driver_id),
+    ...Object.values(picks).map(p => p.driverId).filter(Boolean),
+    ...existing.map(d => d.driver_id),
   ];
 
-  const handlePick = (pick,driverId,ownerIdx) => {
-    setPicks(prev=>({...prev,[pick]:{driverId,ownerIdx}}));
+  const handlePick = (pick, driverId, ownerIdx) => {
+    setPicks(prev => ({ ...prev, [pick]: { driverId, ownerIdx } }));
   };
+  const clearPicks = () => setPicks({});
 
   const save = async () => {
-    if(!race) return;
-    setSaving(true); setMsg(null);
-    const rows = Object.entries(picks).filter(([,v])=>v.driverId).map(([pick,v])=>({
-      race_id:race.id, owner_id:owners[v.ownerIdx]?.id,
-      driver_id:v.driverId, pick_number:Number(pick),
+    if (!race) return;
+    setSaving(true);
+    const rows = Object.entries(picks).filter(([, v]) => v.driverId).map(([pick, v]) => ({
+      race_id: race.id, owner_id: owners[v.ownerIdx]?.id,
+      driver_id: v.driverId, pick_number: Number(pick),
     }));
-    const {error} = await supabase.from("drafts").upsert(rows,{onConflict:"race_id,driver_id"});
+    const { error } = await supabase.from("drafts").upsert(rows, { onConflict: "race_id,driver_id" });
     setSaving(false);
-    if(error) setMsg({type:"error",text:error.message});
-    else { setMsg({type:"success",text:"Draft saved!"}); setPicks({}); reload(); }
+    if (error) setToast(error.message, "error");
+    else { setToast(`✅ Draft saved — ${rows.length} pick${rows.length > 1 ? "s" : ""} locked in for ${race.name}.`); setPicks({}); reload(); }
   };
 
-  const tdStyle = (ownerIdx) => ({
-    padding:"8px 14px", borderBottom:"1px solid #1a1a28",
-    background:ownerIdx===0?"#0d1520":"#150d0d",
-  });
+  const nextUpcoming = races.find(r => !r.results_updated);
+  const availableRaces = races.filter(r => r.results_updated || r.id === nextUpcoming?.id);
+  const pickedCount = Object.values(picks).filter(v => v.driverId).length;
+  const draftLocked = existing.length === 16;
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:24}}>
-      {/* Race picker */}
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"1.5px",color:"#666"}}>Select Race Week</span>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {(() => {
-            const nextUpcoming = races.find(r => !r.results_updated);
-            const availableRaces = races.filter(r => r.results_updated || r.id === nextUpcoming?.id);
-            return availableRaces;
-          })().map(r=>(
-            <button key={r.id} onClick={()=>{setSelRace(r.id);setPicks({});setMsg(null);}} style={{
-              display:"flex",flexDirection:"column",alignItems:"center",
-              background:selRace===r.id?(r.results_updated?"#0a1a0e":"#1a0808"):(r.results_updated?"#0a1a0e":"#111118"),
-              border:`1px solid ${selRace===r.id?(r.results_updated?"#27AE60":"#E8002D"):(r.results_updated?"#27AE6044":"#222232")}`,
-              borderRadius:8, padding:"8px 12px", cursor:"pointer",
-              color:selRace===r.id?"#fff":"#888", fontSize:11, gap:2, minWidth:64,
-              transition:"all 0.15s",
-            }}>
-              <span style={{fontSize:10,fontWeight:700,color:r.results_updated?"#27AE60":"#E8002D"}}>R{r.round}</span>
-              <span style={{fontWeight:600,textAlign:"center",lineHeight:1.2}}>{r.name}</span>
-              {r.has_sprint&&<span style={{width:6,height:6,background:"#FF8000",borderRadius:"50%",display:"inline-block"}}/>}
-            </button>
-          ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: anim("up", 0) }}>
+        <span style={labelStyle}>Select Race Week</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {availableRaces.map((r, i) => {
+            const active = selRace === r.id;
+            return (
+              <button key={r.id} onClick={() => { setSelRace(r.id); setPicks({}); }} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 104,
+                background: active ? (r.results_updated ? "rgba(39,152,62,.14)" : "rgba(225,6,0,.14)") : C.surface,
+                border: `1px solid ${active ? (r.results_updated ? C.green : C.red) : C.hairline}`,
+                borderRadius: 12, padding: "10px 14px", cursor: "pointer",
+                color: active ? C.textPrimary : C.textMuted, fontSize: 12,
+                transition: "transform .2s,border-color .25s,background .25s", animation: anim("up", 20 + i * 30),
+              }}>
+                <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", color: r.results_updated ? C.greenLight : C.redLight }}>R{r.round}</span>
+                <span style={{ fontWeight: 600, lineHeight: 1.2, textAlign: "center" }}>{r.name}</span>
+                {r.has_sprint && <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.orange }} />}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {race && (
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}}>
-            <h3 style={{fontSize:16,fontWeight:700}}>Draft Board — {race.name}</h3>
-            <div style={{fontSize:12,color:"#888",background:"#111118",border:"1px solid #222232",borderRadius:8,padding:"8px 14px",display:"inline-flex",alignItems:"center",gap:6}}>
-              🎯 <span style={{color:"#fff",fontWeight:600}}>{owners[firstPickerIdx]?.name}</span> picks first
-              {race.round === 1
-                ? <span style={{color:"#555"}}>(Round 1 default)</span>
-                : <span style={{color:"#555"}}>(lost previous race)</span>
-              }
+        <>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14, animation: anim("up", 70) }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+              <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 20, color: C.textPrimary, letterSpacing: "0.03em" }}>DRAFT BOARD — {race.name}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: C.textMuted, flexWrap: "wrap" }}>
+                🎯 <b style={{ color: C.textPrimary }}>{owners[firstPickerIdx]?.name}</b> picks first{" "}
+                <span style={{ color: C.textFaint }}>({race.round === 1 ? "Round 1 default" : "lost the previous race"})</span>
+              </span>
             </div>
-            {existing.length>0&&<Badge color="#27AE60">{existing.length} picks saved</Badge>}
+            {draftLocked ? (
+              <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.08em", textTransform: "uppercase", color: C.greenLight, background: "rgba(39,152,62,.13)", border: "1px solid rgba(39,152,62,.35)", padding: "8px 14px", borderRadius: 8 }}>🔒 16 picks saved</span>
+            ) : (
+              <span style={{ fontFamily: "Orbitron,sans-serif", fontSize: 13, color: C.textMuted }}>{existing.length}/16 picks entered</span>
+            )}
           </div>
-          <Msg {...(msg??{type:"success",text:""})} />
-          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid #222232"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:14}}>
-              <thead>
-                <tr>
-                  {["Pick","Rnd","Owner","Driver","Constructor"].map(h=>(
-                    <th key={h} style={{background:"#111118",padding:"10px 14px",textAlign:"left",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",borderBottom:"1px solid #222232"}}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {snakeOrder.map(({pick,round,ownerIdx})=>{
-                  const owner=owners[ownerIdx];
-                  const ex=existing.find(d=>d.pick_number===pick);
-                  const cur=picks[pick];
-                  const selId=ex?.driver_id??cur?.driverId;
-                  const selDriver=drivers.find(d=>d.id===selId);
+
+          {toast && <Toast toast={toast} />}
+
+          <div style={{ border: `1px solid ${C.hairline}`, borderRadius: 14, overflow: "hidden", animation: anim("up", 140) }}>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 640 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "60px 60px 130px 1fr 190px 90px", padding: "12px 20px", background: C.surfaceRaised, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.12em", textTransform: "uppercase", color: C.textMuted }}>
+                  <span>Pick</span><span>Rnd</span><span>Owner</span><span>Driver</span><span>Constructor</span><span style={{ textAlign: "right" }}>Bonus</span>
+                </div>
+                {snakeOrder.map(({ pick, round, ownerIdx }, i) => {
+                  const owner = owners[ownerIdx];
+                  const ident = OWNER_STYLE[ownerIdx] ?? OWNER_STYLE[0];
+                  const ex = existing.find(d => d.pick_number === pick);
+                  const cur = picks[pick];
+                  const selId = ex?.driver_id ?? cur?.driverId;
+                  const selDriver = drivers.find(d => d.id === selId);
+                  const bonus = !!(selDriver && owner && selDriver.constructor === owner.constructor);
                   return (
-                    <tr key={pick}>
-                      <td style={{...tdStyle(ownerIdx),fontWeight:700,color:"#666",width:36}}>{pick}</td>
-                      <td style={tdStyle(ownerIdx)}>{round}</td>
-                      <td style={tdStyle(ownerIdx)}>
-                        <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:4,background:ownerIdx===0?"#1A527644":"#7D3C1B44",color:ownerIdx===0?"#5dade2":"#e59866"}}>{owner?.name}</span>
-                      </td>
-                      <td style={tdStyle(ownerIdx)}>
+                    <div key={pick} style={{ display: "grid", gridTemplateColumns: "60px 60px 130px 1fr 190px 90px", alignItems: "center", padding: "9px 20px", gap: 8, background: ident.row, borderTop: `1px solid ${C.rowLine}`, borderLeft: `3px solid ${ident.color}`, animation: anim("up", 20 + i * 22) }}>
+                      <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 13, color: C.textFaint }}>{pick}</span>
+                      <span style={{ fontSize: 12, color: C.textMuted }}>{round}</span>
+                      <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase", color: ident.text, background: ident.chip, padding: "4px 9px", borderRadius: 6, justifySelf: "start" }}>{owner?.name}</span>
+                      <span>
                         {ex ? (
-                          <span style={{color:"#27AE60",fontWeight:500}}>{ex.drivers?.name}</span>
+                          <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: C.greenLight, fontWeight: 600 }}><span style={{ fontSize: 13 }}>✓</span>{ex.drivers?.name}</span>
                         ) : (
-                          <select value={cur?.driverId??""} onChange={e=>handlePick(pick,e.target.value,ownerIdx)}
-                            style={{background:"#0a0a14",border:"1px solid #2a2a3a",color:"#e8e8f0",padding:"6px 10px",borderRadius:6,fontSize:13,width:"100%",minWidth:160,cursor:"pointer",outline:"none"}}>
+                          <select value={cur?.driverId ?? ""} onChange={e => handlePick(pick, e.target.value, ownerIdx)}
+                            style={{ width: "100%", maxWidth: 280, background: C.surface, border: `1px solid ${cur?.driverId ? "rgba(225,6,0,.45)" : C.borderStrong}`, color: cur?.driverId ? C.textBody : C.textFaint, padding: "7px 11px", borderRadius: 8, fontSize: 13, cursor: "pointer", outline: "none", transition: "border-color .2s" }}>
                             <option value="">— Select driver —</option>
-                            {drivers.filter(d=>!usedIds.includes(d.id)||d.id===cur?.driverId).map(d=>(
+                            {drivers.filter(d => !usedIds.includes(d.id) || d.id === cur?.driverId).map(d => (
                               <option key={d.id} value={d.id}>{d.name}</option>
                             ))}
                           </select>
                         )}
-                      </td>
-                      <td style={tdStyle(ownerIdx)}>
-                        {selDriver&&<span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}><ConstructorLogo constructor={selDriver.constructor} results={results} drivers={drivers}/>{selDriver.constructor}</span>}
-                      </td>
-                    </tr>
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.textMuted }}>
+                        {selDriver && (
+                          <>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: CONSTRUCTOR_COLORS[selDriver.constructor] ?? C.textFaint, flexShrink: 0 }} />
+                            {selDriver.constructor}
+                          </>
+                        )}
+                      </span>
+                      <span style={{ textAlign: "right" }}>
+                        {bonus && <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, color: C.gold }}>★ +15%</span>}
+                      </span>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
-          <div style={{display:"flex",alignItems:"center",gap:12}}>
-            {Object.keys(picks).length>0&&(
-              <button onClick={save} disabled={saving} style={{background:"#E8002D",color:"white",border:"none",padding:"12px 28px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",opacity:saving?0.5:1}}>
-                {saving?"Saving…":`Save ${Object.keys(picks).length} Pick${Object.keys(picks).length>1?"s":""}`}
-              </button>
-            )}
-            <button onClick={() => window.location.reload(true)} title="Hard refresh" style={{background:"#111118",color:"#888",border:"1px solid #222232",padding:"12px 20px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer"}}>
-              🔄 Refresh
+
+          <div style={{ display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <button onClick={save} disabled={saving || !pickedCount} style={{ background: C.red, border: "none", color: "#fff", padding: "14px 30px", borderRadius: 10, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", cursor: pickedCount ? "pointer" : "default", opacity: saving ? 0.5 : (pickedCount ? 1 : 0.4), boxShadow: "0 6px 20px rgba(225,6,0,.28)" }}>
+              {saving ? "Saving…" : (pickedCount ? `Save ${pickedCount} pick${pickedCount > 1 ? "s" : ""}` : "Save draft")}
             </button>
+            <button onClick={clearPicks} disabled={!pickedCount} style={{ background: "rgb(28,28,36)", border: `1px solid ${C.borderStrong}`, color: C.textMuted, padding: "14px 22px", borderRadius: 10, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", cursor: pickedCount ? "pointer" : "default", opacity: pickedCount ? 1 : 0.4 }}>
+              Clear
+            </button>
+            <span style={{ display: "flex", alignItems: "center", gap: 18, marginLeft: "auto", fontSize: 12, color: C.textFaint, flexWrap: "wrap" }}>
+              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: OWNER_STYLE[0].color }} />{owners[0]?.name}</span>
+              <span style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: OWNER_STYLE[1].color }} />{owners[1]?.name}</span>
+              <span><span style={{ color: C.gold }}>★ +15%</span> driver matches owner's constructor</span>
+            </span>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
@@ -643,166 +783,146 @@ function ResultsTab({ races, results, drivers, reload }) {
   const [selRace, setSelRace] = useState(null);
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState(null);
+  const [toast, setToast] = useToast();
   const [triggering, setTriggering] = useState(false);
 
-  const race = races.find(r=>r.id===selRace);
+  const race = races.find(r => r.id === selRace);
 
   useEffect(() => {
-    if(!selRace) return;
-    const f={};
-    for(const d of drivers){
-      const ex=results.find(r=>r.race_id===selRace&&r.driver_id===d.id);
-      f[d.id]={finish_position:ex?.finish_position??"",dnf:ex?.finish_position===null&&ex?.race_id?true:false,pole_position:ex?.pole_position??false,fastest_lap:ex?.fastest_lap??false,most_pos_gained:ex?.most_pos_gained??false,sprint_win:ex?.sprint_win??false,sprint_pole:ex?.sprint_pole??false};
+    if (!selRace) return;
+    const f = {};
+    for (const d of drivers) {
+      const ex = results.find(r => r.race_id === selRace && r.driver_id === d.id);
+      f[d.id] = { finish_position: ex?.finish_position ?? "", dnf: ex?.finish_position === null && ex?.race_id ? true : false, pole_position: ex?.pole_position ?? false, fastest_lap: ex?.fastest_lap ?? false, most_pos_gained: ex?.most_pos_gained ?? false, sprint_win: ex?.sprint_win ?? false, sprint_pole: ex?.sprint_pole ?? false };
     }
     setForm(f);
-  }, [selRace, results]);
+  }, [selRace, results, drivers]);
 
-  const upd = (dId,field,val) => setForm(prev=>({...prev,[dId]:{...prev[dId],[field]:val}}));
+  const upd = (dId, field, val) => setForm(prev => ({ ...prev, [dId]: { ...prev[dId], [field]: val } }));
 
   const save = async () => {
-    if(!race) return;
-    setSaving(true); setMsg(null);
-    const rows=Object.entries(form).filter(([,v])=>v.finish_position!==""||v.dnf).map(([dId,v])=>({
-      race_id:race.id,driver_id:dId,finish_position:v.dnf?null:Number(v.finish_position),
-      pole_position:v.pole_position,fastest_lap:v.fastest_lap,
-      most_pos_gained:v.most_pos_gained,sprint_win:v.sprint_win,sprint_pole:v.sprint_pole,
+    if (!race) return;
+    setSaving(true);
+    const rows = Object.entries(form).filter(([, v]) => v.finish_position !== "" || v.dnf).map(([dId, v]) => ({
+      race_id: race.id, driver_id: dId, finish_position: v.dnf ? null : Number(v.finish_position),
+      pole_position: v.pole_position, fastest_lap: v.fastest_lap,
+      most_pos_gained: v.most_pos_gained, sprint_win: v.sprint_win, sprint_pole: v.sprint_pole,
     }));
-    const {error}=await supabase.from("race_results").upsert(rows,{onConflict:"race_id,driver_id"});
-    if(!error) await supabase.from("races").update({results_updated:true,updated_at:new Date().toISOString()}).eq("id",race.id);
+    const { error } = await supabase.from("race_results").upsert(rows, { onConflict: "race_id,driver_id" });
+    if (!error) await supabase.from("races").update({ results_updated: true, updated_at: new Date().toISOString() }).eq("id", race.id);
     setSaving(false);
-    if(error) setMsg({type:"error",text:error.message});
-    else { setMsg({type:"success",text:"Results saved!"}); reload(); }
+    if (error) setToast(error.message, "error");
+    else { setToast(`✅ Results saved for ${race.name} — ${rows.length} drivers scored, Slack notified.`); reload(); }
   };
 
-  // ── FIXED: always sends explicit round number, never relies on auto-detect ──
   const triggerFetch = async () => {
-    if (!race) {
-      setMsg({ type:"error", text:"Select a race first, then click Auto-fetch." });
-      return;
-    }
-    setTriggering(true); setMsg(null);
+    if (!race) { setToast("Select a race first, then click Auto-fetch.", "error"); return; }
+    setTriggering(true);
     try {
       const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-scores-v2`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          "Content-Type": "application/json",
-        },
+        headers: { "Authorization": `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({ round: race.round }),
       });
       const data = await res.json();
       if (res.ok) {
-        setMsg({ type:"success", text:`✅ Updated: ${data.race} — ${data.results_upserted} drivers, bonuses: pole=${data.bonuses_detected?.pole ?? "?"}, FL=${data.bonuses_detected?.fastest_lap ?? "?"}` });
+        setToast(`✅ Updated: ${data.race} — ${data.results_upserted} drivers, bonuses: pole=${data.bonuses_detected?.pole ?? "?"}, FL=${data.bonuses_detected?.fastest_lap ?? "?"}`);
         reload();
       } else {
-        setMsg({ type:"error", text: data.error ?? JSON.stringify(data) });
+        setToast(data.error ?? JSON.stringify(data), "error");
       }
-    } catch(e) {
-      setMsg({ type:"error", text: e.message });
+    } catch (e) {
+      setToast(e.message, "error");
     }
     setTriggering(false);
   };
 
-  const thStyle = {background:"#111118",padding:"10px 12px",fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:1,color:"#666",borderBottom:"1px solid #222232",textAlign:"center"};
-  const tdStyle = {padding:"6px 12px",borderBottom:"1px solid #1a1a28",textAlign:"center"};
+  const gridCols = race?.has_sprint ? "1fr 170px 60px 80px 70px 60px 70px 60px 60px" : "1fr 170px 60px 80px 70px 60px 70px";
 
   return (
-    <div style={{display:"flex",flexDirection:"column",gap:24}}>
-
-      {/* Race picker — now ABOVE auto-fetch so round is always selected first */}
-      <div style={{display:"flex",flexDirection:"column",gap:12}}>
-        <span style={{fontSize:11,fontWeight:700,textTransform:"uppercase",letterSpacing:"1.5px",color:"#666"}}>Select Race</span>
-        <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-          {races.map(r=>(
-            <button key={r.id} onClick={()=>{setSelRace(r.id);setMsg(null);}} style={{
-              display:"flex",flexDirection:"column",alignItems:"center",
-              background:selRace===r.id?(r.results_updated?"#0a1a0e":"#1a0808"):(r.results_updated?"#0a1a0e":"#111118"),
-              border:`1px solid ${selRace===r.id?(r.results_updated?"#27AE60":"#E8002D"):(r.results_updated?"#27AE6044":"#222232")}`,
-              borderRadius:8,padding:"8px 12px",cursor:"pointer",
-              color:selRace===r.id?"#fff":"#888",fontSize:11,gap:2,minWidth:64,
-            }}>
-              <span style={{fontSize:10,fontWeight:700,color:r.results_updated?"#27AE60":"#E8002D"}}>R{r.round}</span>
-              <span style={{fontWeight:600,textAlign:"center",lineHeight:1.2}}>{r.name}</span>
-              {r.has_sprint&&<span style={{width:6,height:6,background:"#FF8000",borderRadius:"50%"}}/>}
-            </button>
-          ))}
+    <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, animation: anim("up", 0) }}>
+        <span style={labelStyle}>Select Race</span>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
+          {races.map((r, i) => {
+            const active = selRace === r.id;
+            return (
+              <button key={r.id} onClick={() => setSelRace(r.id)} style={{
+                display: "flex", flexDirection: "column", alignItems: "center", gap: 3, minWidth: 104,
+                background: active ? (r.results_updated ? "rgba(39,152,62,.14)" : "rgba(225,6,0,.14)") : C.surface,
+                border: `1px solid ${active ? (r.results_updated ? C.green : C.red) : C.hairline}`,
+                borderRadius: 12, padding: "10px 14px", cursor: "pointer",
+                color: active ? C.textPrimary : C.textMuted, fontSize: 12,
+                transition: "transform .2s,border-color .25s,background .25s", animation: anim("up", 20 + i * 24),
+              }}>
+                <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", color: r.results_updated ? C.greenLight : C.redLight }}>R{r.round}</span>
+                <span style={{ fontWeight: 600, lineHeight: 1.2, textAlign: "center" }}>{r.name}</span>
+                {r.has_sprint && <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.orange }} />}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Auto-fetch — disabled until a race is selected */}
-      <div style={{display:"flex",alignItems:"center",gap:16,flexWrap:"wrap"}}>
-        <button
-          onClick={triggerFetch}
-          disabled={triggering || !race}
-          style={{background:"#1a0a0a",border:`1px solid ${race?"#E8002D66":"#33333366"}`,color:race?"#E8002D":"#444",padding:"10px 20px",borderRadius:8,fontSize:14,fontWeight:600,cursor:race?"pointer":"not-allowed",opacity:triggering?0.5:1}}
-        >
-          {triggering
-            ? "Fetching…"
-            : race
-              ? `🔄 Auto-fetch R${race.round} — ${race.name}`
-              : "🔄 Auto-fetch (select a race first)"}
+      <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap", animation: anim("up", 70) }}>
+        <button onClick={triggerFetch} disabled={triggering}
+          style={{ display: "flex", alignItems: "center", gap: 10, background: "rgba(225,6,0,.09)", border: "1px solid rgba(225,6,0,.4)", color: C.redLight, padding: "12px 22px", borderRadius: 10, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 11, letterSpacing: "0.07em", textTransform: "uppercase", cursor: "pointer", opacity: triggering ? 0.6 : 1 }}>
+          {triggering && <span style={{ width: 13, height: 13, border: "2px solid rgba(233,68,64,.3)", borderTopColor: C.redLight, borderRadius: "50%", animation: "spin .8s linear infinite", display: "inline-block" }} />}
+          {triggering ? "Fetching…" : (race ? `🔄 Auto-fetch R${race.round} — ${race.name}` : "🔄 Auto-fetch (select a race first)")}
         </button>
-        <span style={{fontSize:12,color:"#666"}}>Pulls from OpenF1 API and sends Slack notification</span>
+        <span style={{ fontSize: 12, color: C.textFaint }}>Pulls finishing order and bonuses from the OpenF1 API, then posts to Slack</span>
       </div>
 
-      {msg&&<Msg {...msg}/>}
+      {toast && <Toast toast={toast} />}
 
       {race && (
-        <div style={{display:"flex",flexDirection:"column",gap:16}}>
-          <h3 style={{fontSize:16,fontWeight:700}}>{race.name} — Manual Results Entry</h3>
-          <div style={{overflowX:"auto",borderRadius:10,border:"1px solid #222232"}}>
-            <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
-              <thead>
-                <tr>
-                  <th style={{...thStyle,textAlign:"left"}}>Driver</th>
-                  <th style={{...thStyle,textAlign:"left"}}>Constructor</th>
-                  <th style={thStyle} title="Did Not Finish">DNF</th>
-                  <th style={thStyle}>Pos</th>
-                  <th style={thStyle} title="Pole Position">P</th>
-                  <th style={thStyle} title="Fastest Lap">FL</th>
-                  <th style={thStyle} title="Most Positions Gained">MPG</th>
-                  {race.has_sprint&&<><th style={thStyle} title="Sprint Win">SW</th><th style={thStyle} title="Sprint Pole">SP</th></>}
-                </tr>
-              </thead>
-              <tbody>
-                {drivers.map(d=>{
-                  const f=form[d.id]??{};
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, animation: anim("up", 140) }}>
+          <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 18, color: C.textPrimary, letterSpacing: "0.03em" }}>{race.name} — MANUAL ENTRY</span>
+          <div style={{ border: `1px solid ${C.hairline}`, borderRadius: 14, overflow: "hidden" }}>
+            <div style={{ overflowX: "auto" }}>
+              <div style={{ minWidth: 700 }}>
+                <div style={{ display: "grid", gridTemplateColumns: gridCols, padding: "12px 20px", background: C.surfaceRaised, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", textTransform: "uppercase", color: C.textMuted }}>
+                  <span>Driver</span><span>Constructor</span><span style={{ textAlign: "center" }}>DNF</span><span style={{ textAlign: "center" }}>Pos</span><span style={{ textAlign: "center" }}>Pole</span><span style={{ textAlign: "center" }}>FL</span><span style={{ textAlign: "center" }}>MPG</span>
+                  {race.has_sprint && <><span style={{ textAlign: "center" }}>SW</span><span style={{ textAlign: "center" }}>SP</span></>}
+                </div>
+                {drivers.map((d, i) => {
+                  const f = form[d.id] ?? {};
                   return (
-                    <tr key={d.id}>
-                      <td style={{...tdStyle,textAlign:"left",fontWeight:500,whiteSpace:"nowrap"}}>{d.name}</td>
-                      <td style={{...tdStyle,textAlign:"left"}}>
-                        <span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}>
-                          <ConstructorLogo constructor={d.constructor} results={results} drivers={drivers}/>{d.constructor}
+                    <div key={d.id} style={{ display: "grid", gridTemplateColumns: gridCols, alignItems: "center", padding: "7px 20px", borderTop: `1px solid ${C.rowLine}`, transition: "background .2s", animation: anim("up", 10 + i * 16) }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody, whiteSpace: "nowrap" }}>{d.name}</span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.textMuted }}>
+                        <ConstructorLogo constructor={d.constructor} results={results} drivers={drivers} size={14} />{d.constructor}
+                      </span>
+                      <span style={{ textAlign: "center" }}>
+                        <input type="checkbox" checked={f.dnf ?? false} onChange={e => { upd(d.id, "dnf", e.target.checked); if (e.target.checked) upd(d.id, "finish_position", ""); }} style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.red }} />
+                      </span>
+                      <span style={{ textAlign: "center" }}>
+                        <input type="number" min="1" max="22" value={f.finish_position ?? ""} onChange={e => upd(d.id, "finish_position", e.target.value)}
+                          disabled={f.dnf ?? false}
+                          style={{ width: 54, background: f.dnf ? "rgba(225,6,0,.08)" : C.surface, border: `1px solid ${f.dnf ? "rgba(225,6,0,.4)" : C.borderStrong}`, color: f.dnf ? C.textFaint : C.textBody, padding: "5px 8px", borderRadius: 7, fontSize: 13, textAlign: "center", outline: "none", fontFamily: "Orbitron,sans-serif", cursor: f.dnf ? "not-allowed" : "text" }} />
+                      </span>
+                      {["pole_position", "fastest_lap", "most_pos_gained"].map(field => (
+                        <span key={field} style={{ textAlign: "center" }}>
+                          <input type="checkbox" checked={f[field] ?? false} onChange={e => upd(d.id, field, e.target.checked)} style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.red }} />
                         </span>
-                      </td>
-                      <td style={tdStyle}>
-                        <input type="checkbox" checked={f.dnf??false} onChange={e=>{upd(d.id,"dnf",e.target.checked);if(e.target.checked)upd(d.id,"finish_position","");}} style={{width:16,height:16,cursor:"pointer",accentColor:"#E8002D"}}/>
-                      </td>
-                      <td style={tdStyle}>
-                        <input type="number" min="1" max="20" value={f.finish_position??""} onChange={e=>upd(d.id,"finish_position",e.target.value)}
-                          disabled={f.dnf??false}
-                          style={{width:52,background:f.dnf?"#1a0808":"#0a0a14",border:`1px solid ${f.dnf?"#E8002D44":"#2a2a3a"}`,color:f.dnf?"#444":"#e8e8f0",padding:"4px 8px",borderRadius:5,fontSize:13,textAlign:"center",outline:"none",cursor:f.dnf?"not-allowed":"text"}}/>
-                      </td>
-                      {["pole_position","fastest_lap","most_pos_gained"].map(field=>(
-                        <td key={field} style={tdStyle}>
-                          <input type="checkbox" checked={f[field]??false} onChange={e=>upd(d.id,field,e.target.checked)} style={{width:16,height:16,cursor:"pointer",accentColor:"#E8002D"}}/>
-                        </td>
                       ))}
-                      {race.has_sprint&&["sprint_win","sprint_pole"].map(field=>(
-                        <td key={field} style={tdStyle}>
-                          <input type="checkbox" checked={f[field]??false} onChange={e=>upd(d.id,field,e.target.checked)} style={{width:16,height:16,cursor:"pointer",accentColor:"#E8002D"}}/>
-                        </td>
+                      {race.has_sprint && ["sprint_win", "sprint_pole"].map(field => (
+                        <span key={field} style={{ textAlign: "center" }}>
+                          <input type="checkbox" checked={f[field] ?? false} onChange={e => upd(d.id, field, e.target.checked)} style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.red }} />
+                        </span>
                       ))}
-                    </tr>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
+              </div>
+            </div>
           </div>
-          <button onClick={save} disabled={saving} style={{alignSelf:"flex-start",background:"#E8002D",color:"white",border:"none",padding:"12px 28px",borderRadius:8,fontSize:14,fontWeight:700,cursor:"pointer",opacity:saving?0.5:1}}>
-            {saving?"Saving…":"Save Results"}
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+            <button onClick={save} disabled={saving} style={{ background: C.red, border: "none", color: "#fff", padding: "14px 30px", borderRadius: 10, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 6px 20px rgba(225,6,0,.28)", opacity: saving ? 0.6 : 1 }}>
+              {saving ? "Saving…" : "💾 Save results & notify"}
+            </button>
+            <span style={{ fontSize: 12, color: C.textFaint }}>Base 30 / 24 / 18 / 12 / 6 / 2 by finishing band · Pole +5 · FL +3 · MPG +2 · Sprint win +5 · Sprint pole +3 · ×1.15 constructor match</span>
+          </div>
         </div>
       )}
     </div>
@@ -811,11 +931,12 @@ function ResultsTab({ races, results, drivers, reload }) {
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  const { owners,drivers,races,drafts,results,raceScores,standings,payouts,loading,error,reload } = useData();
+  const { owners, drivers, races, drafts, results, raceScores, standings, payouts, loading, error, reload } = useData();
   const [tab, setTab] = useState("scoreboard");
   const [spoilerMode, setSpoilerMode] = useState(() => {
     try { return localStorage.getItem("spoilerMode") === "true"; } catch { return false; }
   });
+  const progress = useCountUp([tab, spoilerMode]);
 
   const toggleSpoiler = () => setSpoilerMode(prev => {
     const next = !prev;
@@ -824,81 +945,35 @@ export default function App() {
   });
 
   return (
-    <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:"#0a0a0f",color:"#e8e8f0",fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.textBody, fontFamily: "'Titillium Web',sans-serif", position: "relative" }}>
       <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: #0a0a0f; }
-        select option { background: #111118; color: #e8e8f0; }
-        input[type=number]::-webkit-inner-spin-button { opacity:1; }
-        @media (max-width: 600px) {
-          .main-content { padding: 16px !important; }
-          .header-title { font-size: 18px !important; }
-          .tab-label-full { display: none; }
-          .tab-label-short { display: inline !important; }
-          .settlement-text { font-size: 15px !important; }
+        .shell-inner{padding:0 28px}
+        .standings-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+        .shell-main{padding:30px 28px 70px}
+        @media (max-width:700px){
+          .shell-inner{padding:0 16px}
+          .shell-main{padding:20px 16px 60px}
+        }
+        @media (max-width:640px){
+          .standings-grid{grid-template-columns:1fr}
         }
       `}</style>
 
-      {/* Header */}
-      <header style={{background:"linear-gradient(135deg,#0d0d1a 0%,#1a0a0a 100%)",borderBottom:"2px solid #E8002D33",padding:"0 16px"}}>
-        <div style={{maxWidth:1100,margin:"0 auto",display:"flex",alignItems:"center",justifyContent:"space-between",height:56,gap:8}}>
-          <div style={{display:"flex",alignItems:"center",gap:10,flexShrink:0}}>
-            <span style={{fontSize:24}}>🏎</span>
-            <h1 className="header-title" style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>F1 Fantasy <span style={{color:"#E8002D"}}>2026</span></h1>
-          </div>
-          <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",justifyContent:"flex-end"}}>
-            <button
-              onClick={toggleSpoiler}
-              title={spoilerMode ? "Spoiler Shield ON — scores hidden. Click to reveal." : "Spoiler Shield OFF — click to hide scores."}
-              style={{
-                display:"flex",alignItems:"center",gap:6,
-                fontSize:11,fontWeight:700,letterSpacing:0.5,
-                background: spoilerMode ? "#FF800033" : "#22222288",
-                color: spoilerMode ? "#FF8000" : "#555",
-                padding:"4px 10px",borderRadius:20,
-                border: spoilerMode ? "1px solid #FF800066" : "1px solid #33333366",
-                cursor:"pointer",whiteSpace:"nowrap",transition:"all 0.2s",
-              }}
-            >
-              {spoilerMode ? "🙈 SPOILERS HIDDEN" : "👁 SHOW SCORES"}
-            </button>
-            <span style={{fontSize:11,fontWeight:600,letterSpacing:1,background:"#E8002D22",color:"#E8002D",padding:"4px 10px",borderRadius:20,border:"1px solid #E8002D44",textTransform:"uppercase",whiteSpace:"nowrap"}}>
-              Steve vs Trevor
-            </span>
-          </div>
-        </div>
-      </header>
+      <Header spoilerMode={spoilerMode} toggleSpoiler={toggleSpoiler} />
+      {!loading && !error && !spoilerMode && <Settlement standings={standings} payouts={payouts} progress={progress} />}
+      <TabNav tab={tab} setTab={setTab} />
 
-      {/* Settlement */}
-      {!loading&&!error&&!spoilerMode&&<Settlement standings={standings} payouts={payouts}/>}
-
-      {/* Tabs */}
-      <nav style={{display:"flex",gap:2,background:"#111118",borderBottom:"1px solid #222232",padding:"0 16px",overflowX:"auto"}}>
-        {[
-          ["scoreboard","🏆 Scoreboard","🏆"],
-          ["draft","📋 Draft","📋"],
-          ["results","🏁 Results","🏁"],
-        ].map(([id,label,short])=>(
-          <button key={id} onClick={()=>setTab(id)} style={{background:"none",border:"none",cursor:"pointer",color:tab===id?"#fff":"#666",fontSize:14,fontWeight:600,padding:"14px 16px",borderBottom:`3px solid ${tab===id?"#E8002D":"transparent"}`,transition:"all 0.15s",whiteSpace:"nowrap"}}>
-            <span className="tab-label-full">{label}</span>
-            <span className="tab-label-short" style={{display:"none"}}>{short}</span>
-          </button>
-        ))}
-      </nav>
-
-      {/* Content */}
-      <main className="main-content" style={{flex:1,padding:24,maxWidth:1100,margin:"0 auto",width:"100%"}}>
-        {loading && <Spinner/>}
-        {error   && <div style={{background:"#1a0808",border:"1px solid #E8002D44",color:"#E8002D",padding:16,borderRadius:8}}>⚠️ {error}</div>}
-        {!loading&&!error&&(
-          <>
-            {tab==="scoreboard" && <RaceCountdown races={races}/>}
-            {tab==="scoreboard" && <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers} spoilerMode={spoilerMode}/>}
-            {tab==="draft"      && <RaceCountdown races={races}/>}
-            {tab==="draft"      && <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} results={results} reload={reload}/>}
-            {tab==="results"    && <ResultsTab races={races} results={results} drivers={drivers} reload={reload}/>}
-          </>
+      <main className="shell-main" style={{ flex: 1, maxWidth: 1180, margin: "0 auto", width: "100%" }}>
+        {loading && <Spinner />}
+        {error && <div style={{ background: "rgba(225,6,0,.08)", border: "1px solid rgba(225,6,0,.3)", color: C.redLight, padding: 16, borderRadius: 10 }}>⚠️ {error}</div>}
+        {!loading && !error && tab === "scoreboard" && (
+          <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers} spoilerMode={spoilerMode} progress={progress} onReveal={toggleSpoiler} />
+        )}
+        {!loading && !error && tab === "draft" && (
+          <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} results={results} reload={reload} />
+        )}
+        {!loading && !error && tab === "results" && (
+          <ResultsTab races={races} results={results} drivers={drivers} reload={reload} />
         )}
       </main>
     </div>

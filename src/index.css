@@ -1,25 +1,74 @@
-@import url('https://fonts.googleapis.com/css2?family=Exo+2:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;800;900&family=Titillium+Web:wght@300;400;600;700&family=Montserrat:wght@600;700&display=swap');
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
 :root{
-  --navy:#0a0e1a;--navy-mid:#111827;--navy-lt:#1e2a3a;
-  --red:#e8002d;--red-dark:#b00022;--red-glow:rgba(232,0,45,0.25);
-  --gold:#d4a017;--gold-lt:#f5c842;
-  --white:#f0f4ff;--gray:#8899aa;--gray-lt:#ccd6e0;
-  --steve:#1a6fbf;--steve-lt:#d0e8ff;
-  --trevor:#b85c00;--trevor-lt:#ffe8cc;
-  --green:#00c46a;--border:rgba(255,255,255,0.08);
+  --bg:rgb(11,11,11);
+  --surface:rgb(21,21,29);
+  --surface-raised:rgb(26,26,36);
+  --hairline:rgb(38,38,43);
+  --row-line:rgb(30,30,38);
+  --row-line-2:rgb(32,32,40);
+  --border-strong:rgb(48,48,55);
+
+  --text-primary:rgb(254,254,254);
+  --text-body:rgb(247,244,241);
+  --text-secondary:rgb(208,208,213);
+  --text-muted:rgb(170,171,177);
+  --text-faint:rgb(96,96,102);
+
+  --red:rgb(225,6,0);
+  --red-hover:rgb(169,5,0);
+  --red-light:rgb(233,68,64);
+  --gold:rgb(255,209,0);
+  --green:rgb(39,152,62);
+  --green-light:rgb(93,178,110);
+  --orange:rgb(227,97,0);
+  --orange-light:rgb(234,136,64);
+
+  --steve:rgb(225,6,0);
+  --steve-chip:rgba(225,6,0,.16);
+  --steve-text:rgb(240,130,128);
+  --steve-row:rgba(225,6,0,.05);
+
+  --trevor:rgb(227,97,0);
+  --trevor-chip:rgba(227,97,0,.16);
+  --trevor-text:rgb(241,176,128);
+  --trevor-row:rgba(227,97,0,.05);
+
+  --team-mclaren:rgb(227,97,0);
+  --team-ferrari:rgb(113,3,0);
+  --team-redbull:rgb(64,71,255);
+  --team-mercedes:rgb(44,95,28);
+  --team-astonmartin:rgb(29,114,47);
+  --team-alpine:rgb(119,44,79);
+  --team-williams:rgb(0,5,128);
+  --team-racingbulls:rgb(128,133,255);
+  --team-haas:rgb(170,171,177);
+  --team-audi:rgb(88,189,55);
+  --team-cadillac:rgb(0,3,64);
 }
-html,body{background:var(--navy);color:var(--white);font-family:'Exo 2',sans-serif;font-size:16px;min-height:100vh;overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,255,255,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.02) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
-#root{position:relative;z-index:1}
-button{font-family:'Exo 2',sans-serif;cursor:pointer;border:none;outline:none}
-select,input{font-family:'Exo 2',sans-serif}
-::-webkit-scrollbar{width:6px}
-::-webkit-scrollbar-track{background:var(--navy-mid)}
-::-webkit-scrollbar-thumb{background:var(--navy-lt);border-radius:3px}
+
+html,body{background:var(--bg);color:var(--text-body);font-family:'Titillium Web',sans-serif;min-height:100vh;overflow-x:hidden}
+#root{position:relative;z-index:1;min-height:100vh}
+
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background-image:linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+  background-size:40px 40px;
+}
+
+button{font-family:'Titillium Web',sans-serif;cursor:pointer;border:none;outline:none;background:none}
+select,input{font-family:'Titillium Web',sans-serif}
+
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--border-strong);border-radius:4px}
+
 @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes popIn{from{opacity:0;transform:translateY(24px) scale(.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes sheen{0%{transform:translateX(-40%)}100%{transform:translateX(140%)}}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(1.4)}}
 @keyframes spin{to{transform:rotate(360deg)}}
-.animate-fade-up{animation:fadeUp 0.4s ease both}
-.animate-fade-up-2{animation:fadeUp 0.4s 0.1s ease both}
-.animate-fade-up-3{animation:fadeUp 0.4s 0.2s ease both}
-.animate-fade-up-4{animation:fadeUp 0.4s 0.3s ease both}
+@keyframes slideIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
