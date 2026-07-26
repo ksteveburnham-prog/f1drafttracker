@@ -39,6 +39,16 @@ const CONSTRUCTOR_COLORS = {
   "Audi": "rgb(88,189,55)", "Cadillac": "rgb(0,3,64)",
 };
 
+const FLAG_BY_RACE = {
+  "Australia": "🇦🇺", "China": "🇨🇳", "Japan": "🇯🇵", "Bahrain": "🇧🇭",
+  "Saudi Arabia": "🇸🇦", "Miami": "🇺🇸", "Canada": "🇨🇦", "Monaco": "🇲🇨",
+  "Barcelona": "🇪🇸", "Austria": "🇦🇹", "Great Britain": "🇬🇧", "Belgium": "🇧🇪",
+  "Hungary": "🇭🇺", "Netherlands": "🇳🇱", "Italy": "🇮🇹", "Madrid": "🇪🇸",
+  "Azerbaijan": "🇦🇿", "Singapore": "🇸🇬", "United States": "🇺🇸", "Mexico": "🇲🇽",
+  "São Paulo": "🇧🇷", "Las Vegas": "🇺🇸", "Qatar": "🇶🇦", "Abu Dhabi": "🇦🇪",
+};
+function getRaceFlag(name) { return FLAG_BY_RACE[name] ?? "🏁"; }
+
 const labelStyle = { fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: C.textMuted };
 
 function anim(kind, delay = 0) {
@@ -353,7 +363,7 @@ function NextRaceCard({ races }) {
       <div style={{ flex: 1, minWidth: 240, display: "flex", flexDirection: "column", gap: 4 }}>
         <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.textMuted }}>Next Race</span>
         <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 19, color: C.textPrimary, letterSpacing: "0.03em" }}>
-          ROUND {nextRace.round} — {nextRace.name}
+          ROUND {nextRace.round} — {getRaceFlag(nextRace.name)} {nextRace.name}
         </span>
         <span style={{ fontSize: 12, color: C.textFaint }}>
           {target ? new Date(target).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric" }) : "Date TBD"}
@@ -430,12 +440,29 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
       const multiplier = constructorMatch ? 1.15 : 1.0;
       const total = Math.round(base * multiplier + bonus);
 
-      return { driver, chips, total, constructorMatch };
+      return { driver, chips, total, constructorMatch, pickNumber: draft.pick_number };
     }).filter(Boolean);
 
     const totalPts = driverRows.reduce((s, r) => s + r.total, 0);
     return { owner, oi, driverRows, totalPts };
   });
+
+  // Best value pick: compare where a driver was drafted (pick_number, lower
+  // = earlier/more valuable slot) against how they actually ranked in
+  // scoring that race. A late pick that out-scored earlier picks is a
+  // "steal" — the bigger the gap, the better the value.
+  const allDraftedRows = ownerBreakdowns.flatMap(({ owner, driverRows }) => driverRows.map(r => ({ ...r, ownerName: owner.name })));
+  let bestValue = null;
+  if (allDraftedRows.length > 1) {
+    const byPerformance = [...allDraftedRows].sort((a, b) => b.total - a.total);
+    const performanceRank = {};
+    byPerformance.forEach((r, idx) => { performanceRank[r.driver.id] = idx + 1; });
+    for (const row of allDraftedRows) {
+      const value = row.pickNumber - performanceRank[row.driver.id];
+      if (!bestValue || value > bestValue.value) bestValue = { ...row, value };
+    }
+    if (!bestValue || bestValue.value <= 0) bestValue = null;
+  }
 
   return (
     <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.82)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: 20, animation: anim("fade") }}>
@@ -443,10 +470,19 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22, gap: 12 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.14em", textTransform: "uppercase", color: C.red }}>Points Breakdown</span>
-            <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 20, color: C.textPrimary, letterSpacing: "0.03em" }}>{race.name} — Round {race.round}</span>
+            <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 20, color: C.textPrimary, letterSpacing: "0.03em" }}>{getRaceFlag(race.name)} {race.name} — Round {race.round}</span>
           </div>
           <button onClick={onClose} style={{ background: "none", border: `1px solid ${C.borderStrong}`, color: C.textMuted, width: 34, height: 34, borderRadius: "50%", fontSize: 15, cursor: "pointer", flexShrink: 0 }}>✕</button>
         </div>
+
+        {bestValue && (
+          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 16px", marginBottom: 18, background: "rgba(255,209,0,.08)", border: "1px solid rgba(255,209,0,.28)", borderRadius: 10, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 16 }}>💎</span>
+            <span style={{ fontSize: 13, color: C.textSecondary }}>
+              <b style={{ color: C.gold }}>Best Value Pick:</b> {bestValue.driver.name} — picked #{bestValue.pickNumber} by {bestValue.ownerName}, finished as the #{bestValue.pickNumber - bestValue.value} scorer this race
+            </span>
+          </div>
+        )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
           {ownerBreakdowns.map(({ owner, oi, driverRows, totalPts }) => (
@@ -461,10 +497,12 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
                 <div style={{ color: C.textFaint, fontSize: 13, fontStyle: "italic" }}>No results yet</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {driverRows.map(({ driver, total, chips, constructorMatch }, ri) => (
-                    <div key={driver.id} style={{ background: C.surface, border: `1px solid ${constructorMatch ? "rgba(255,209,0,.28)" : "rgb(32,32,40)"}`, borderRadius: 10, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", animation: anim("up", 60 + ri * 40) }}>
+                  {driverRows.map(({ driver, total, chips, constructorMatch }, ri) => {
+                    const isValuePick = bestValue?.driver.id === driver.id;
+                    return (
+                    <div key={driver.id} style={{ background: C.surface, border: `1px solid ${isValuePick ? C.gold : (constructorMatch ? "rgba(255,209,0,.28)" : "rgb(32,32,40)")}`, borderRadius: 10, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", animation: anim("up", 60 + ri * 40) }}>
                       <div style={{ flex: 1, minWidth: 150, display: "flex", flexDirection: "column", gap: 3 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody }}>{driver.name}</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody }}>{driver.name} {isValuePick && "💎"}</span>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textFaint }}>
                           <ConstructorLogo constructor={driver.constructor} results={results} drivers={drivers} size={13} />{driver.constructor}
                           {constructorMatch && <b style={{ color: C.gold, marginLeft: 4 }}>+15% 🏆</b>}
@@ -477,7 +515,8 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
                       </div>
                       <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 800, fontSize: 15, color: C.textPrimary, minWidth: 44, textAlign: "right" }}>{total}</span>
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -588,7 +627,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
                       <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14, color: done ? C.textBody : C.textFaint, fontWeight: 600 }}>
                         <span style={{ width: 3, height: 22, borderRadius: 2, background: marker, flexShrink: 0 }} />
                         <span style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", color: C.textFaint, width: 26, flexShrink: 0 }}>R{race.round}</span>
-                        {race.name}
+                        {getRaceFlag(race.name)} {race.name}
                         {race.has_sprint && <span style={{ fontFamily: "'Montserrat',sans-serif", fontSize: 8, fontWeight: 700, letterSpacing: "0.06em", color: C.orange, background: "rgba(227,97,0,.14)", border: "1px solid rgba(227,97,0,.3)", padding: "1px 5px", borderRadius: 4 }}>SPRINT</span>}
                       </span>
                       {ownerNames.map((o, oi) => (
@@ -700,7 +739,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
                 transition: "transform .2s,border-color .25s,background .25s", animation: anim("up", 20 + i * 30),
               }}>
                 <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", color: r.results_updated ? C.greenLight : C.redLight }}>R{r.round}</span>
-                <span style={{ fontWeight: 600, lineHeight: 1.2, textAlign: "center" }}>{r.name}</span>
+                <span style={{ fontWeight: 600, lineHeight: 1.2, textAlign: "center" }}>{getRaceFlag(r.name)} {r.name}</span>
                 {r.has_sprint && <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.orange }} />}
               </button>
             );
@@ -874,7 +913,7 @@ function ResultsTab({ races, results, drivers, reload }) {
                 transition: "transform .2s,border-color .25s,background .25s", animation: anim("up", 20 + i * 24),
               }}>
                 <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 9, letterSpacing: "0.1em", color: r.results_updated ? C.greenLight : C.redLight }}>R{r.round}</span>
-                <span style={{ fontWeight: 600, lineHeight: 1.2, textAlign: "center" }}>{r.name}</span>
+                <span style={{ fontWeight: 600, lineHeight: 1.2, textAlign: "center" }}>{getRaceFlag(r.name)} {r.name}</span>
                 {r.has_sprint && <span style={{ width: 6, height: 6, borderRadius: "50%", background: C.orange }} />}
               </button>
             );
