@@ -40,11 +40,11 @@ const CONSTRUCTOR_COLORS = {
 };
 
 const FLAG_BY_RACE = {
-  "Australia": "🇦🇺", "China": "🇨🇳", "Japan": "🇯🇵", "Bahrain": "🇧🇭",
-  "Saudi Arabia": "🇸🇦", "Miami": "🇺🇸", "Canada": "🇨🇦", "Monaco": "🇲🇨",
+  "Australia": "🇦🇺", "China": "🇨🇳", "Japan": "🇯🇵",
+  "Miami": "🇺🇸", "Canada": "🇨🇦", "Monaco": "🇲🇨",
   "Barcelona": "🇪🇸", "Austria": "🇦🇹", "Great Britain": "🇬🇧", "Belgium": "🇧🇪",
   "Hungary": "🇭🇺", "Netherlands": "🇳🇱", "Italy": "🇮🇹", "Madrid": "🇪🇸",
-  "Azerbaijan": "🇦🇿", "Singapore": "🇸🇬", "United States": "🇺🇸", "Mexico": "🇲🇽",
+  "Azerbaijan": "🇦🇿", "Bahrain (Malaysia)": "🇲🇾", "Singapore": "🇸🇬", "United States": "🇺🇸", "Mexico": "🇲🇽",
   "São Paulo": "🇧🇷", "Las Vegas": "🇺🇸", "Qatar": "🇶🇦", "Abu Dhabi": "🇦🇪",
 };
 function getRaceFlag(name) { return FLAG_BY_RACE[name] ?? "🏁"; }

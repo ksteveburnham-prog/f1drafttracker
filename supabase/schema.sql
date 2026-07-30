@@ -58,31 +58,35 @@ create table races (
   updated_at      timestamptz
 );
 
+-- Saudi Arabia (originally round 5, Apr 19) was postponed due to regional
+-- conflict and has not been rescheduled as of this writing. Bahrain
+-- (originally round 4, Apr 12) was postponed and relocated to Sepang
+-- International Circuit, Malaysia, keeping its "Bahrain GP" branding —
+-- see "Formula 1 Gulf Air Bahrain Grand Prix in Malaysia 2026".
 insert into races (round, name, has_sprint, race_date) values
-  (1,  'Australia',     false, '2026-03-08'),
-  (2,  'China',         true,  '2026-03-15'),
-  (3,  'Japan',         false, '2026-03-29'),
-  (4,  'Bahrain',       false, '2026-04-12'),
-  (5,  'Saudi Arabia',  false, '2026-04-19'),
-  (6,  'Miami',         true,  '2026-05-03'),
-  (7,  'Canada',        true,  '2026-05-24'),
-  (8,  'Monaco',        false, '2026-06-07'),
-  (9,  'Barcelona',     false, '2026-06-14'),
-  (10, 'Austria',       false, '2026-06-28'),
-  (11, 'Great Britain', true,  '2026-07-05'),
-  (12, 'Belgium',       false, '2026-07-19'),
-  (13, 'Hungary',       false, '2026-07-26'),
-  (14, 'Netherlands',   true,  '2026-08-23'),
-  (15, 'Italy',         false, '2026-09-06'),
-  (16, 'Madrid',        false, '2026-09-13'),
-  (17, 'Azerbaijan',    false, '2026-09-26'),
-  (18, 'Singapore',     true,  '2026-10-11'),
-  (19, 'United States', false, '2026-10-25'),
-  (20, 'Mexico',        false, '2026-11-01'),
-  (21, 'São Paulo',     false, '2026-11-08'),
-  (22, 'Las Vegas',     false, '2026-11-21'),
-  (23, 'Qatar',         false, '2026-11-29'),
-  (24, 'Abu Dhabi',     false, '2026-12-06');
+  (1,  'Australia',          false, '2026-03-08'),
+  (2,  'China',              true,  '2026-03-15'),
+  (3,  'Japan',              false, '2026-03-29'),
+  (4,  'Miami',              true,  '2026-05-03'),
+  (5,  'Canada',             true,  '2026-05-24'),
+  (6,  'Monaco',             false, '2026-06-07'),
+  (7,  'Barcelona',          false, '2026-06-14'),
+  (8,  'Austria',            false, '2026-06-28'),
+  (9,  'Great Britain',      true,  '2026-07-05'),
+  (10, 'Belgium',            false, '2026-07-19'),
+  (11, 'Hungary',            false, '2026-07-26'),
+  (12, 'Netherlands',        true,  '2026-08-23'),
+  (13, 'Italy',              false, '2026-09-06'),
+  (14, 'Madrid',             false, '2026-09-13'),
+  (15, 'Azerbaijan',         false, '2026-09-26'),
+  (16, 'Bahrain (Malaysia)', false, '2026-10-04 07:00:00+00'), -- start time TBC, placeholder
+  (17, 'Singapore',          true,  '2026-10-11'),
+  (18, 'United States',      false, '2026-10-25'),
+  (19, 'Mexico',             false, '2026-11-01'),
+  (20, 'São Paulo',          false, '2026-11-08'),
+  (21, 'Las Vegas',          false, '2026-11-22'),
+  (22, 'Qatar',              false, '2026-11-29'),
+  (23, 'Abu Dhabi',          false, '2026-12-06');
 
 -- ── Weekly Drafts ─────────────────────────────────────────────
 create table drafts (
