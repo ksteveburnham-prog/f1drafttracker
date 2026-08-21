@@ -238,3 +238,54 @@ create policy "public_read" on race_results for select using (true);
 create policy "auth_write" on drafts        for all using (auth.role() = 'authenticated');
 create policy "auth_write" on race_results  for all using (auth.role() = 'authenticated');
 create policy "auth_write" on races         for update using (auth.role() = 'authenticated');
+
+-- ============================================================
+-- Migrations applied directly to the live project (not reflected
+-- in the tables/views above — see `supabase migrations list`):
+--   20260819172144  add_race_driver_overrides
+--   20260819172200  views_respect_race_driver_overrides
+--   20260821172718  double_yuki_tsunoda_points
+-- ============================================================
+
+-- ── House rule: whoever drafts Yuki Tsunoda gets his entire race
+-- score doubled (base finish points x constructor-match multiplier,
+-- plus all bonuses), regardless of which constructor he's credited
+-- to for that race. Applied via migration double_yuki_tsunoda_points.
+create or replace view race_scores as
+select
+  r.id                          as race_id,
+  r.round,
+  r.name                        as race_name,
+  r.race_date,
+  r.has_sprint,
+  o.id                          as owner_id,
+  o.name                        as owner_name,
+  o.constructor                 as owner_constructor,
+  coalesce(sum(round(
+    (
+      (case
+        when rr.finish_position = 1 then 30
+        when rr.finish_position between 2 and 3 then 24
+        when rr.finish_position between 4 and 6 then 18
+        when rr.finish_position between 7 and 10 then 12
+        when rr.finish_position between 11 and 15 then 6
+        when rr.finish_position between 16 and 20 then 2
+        else 0
+      end)::numeric
+      * case when coalesce(ov.constructor, d.constructor) = o.constructor then 1.15 else 1.0 end
+      + (case when rr.pole_position then 5 else 0 end)::numeric
+      + (case when rr.fastest_lap then 3 else 0 end)::numeric
+      + (case when rr.most_pos_gained then 2 else 0 end)::numeric
+      + (case when rr.sprint_win then 5 else 0 end)::numeric
+      + (case when rr.sprint_pole then 3 else 0 end)::numeric
+    )
+    * case when d.name = 'Yuki Tsunoda' then 2 else 1 end
+  )), 0)::integer as total_points
+from races r
+cross join owners o
+left join drafts dr on dr.race_id = r.id and dr.owner_id = o.id
+left join drivers d on d.id = dr.driver_id
+left join race_driver_overrides ov on ov.race_id = r.id and ov.driver_id = dr.driver_id
+left join race_results rr on rr.race_id = r.id and rr.driver_id = dr.driver_id
+where r.results_updated = true
+group by r.id, r.round, r.name, r.race_date, r.has_sprint, o.id, o.name, o.constructor;

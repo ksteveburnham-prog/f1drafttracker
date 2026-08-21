@@ -464,9 +464,12 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
       const effConstructor = effectiveConstructor(driver, race.id, overrides);
       const constructorMatch = effConstructor === owner.constructor;
       const multiplier = constructorMatch ? 1.15 : 1.0;
-      const total = Math.round(base * multiplier + bonus);
+      // House rule: whoever drafts Yuki Tsunoda gets his whole race score
+      // doubled, regardless of which constructor he's credited to that race.
+      const isYuki = driver.name === "Yuki Tsunoda";
+      const total = Math.round((base * multiplier + bonus) * (isYuki ? 2 : 1));
 
-      return { driver, chips, total, constructorMatch, effConstructor, pickNumber: draft.pick_number };
+      return { driver, chips, total, constructorMatch, effConstructor, isYuki, pickNumber: draft.pick_number };
     }).filter(Boolean);
 
     const totalPts = driverRows.reduce((s, r) => s + r.total, 0);
@@ -523,16 +526,17 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
                 <div style={{ color: C.textFaint, fontSize: 13, fontStyle: "italic" }}>No results yet</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {driverRows.map(({ driver, total, chips, constructorMatch, effConstructor }, ri) => {
+                  {driverRows.map(({ driver, total, chips, constructorMatch, effConstructor, isYuki }, ri) => {
                     const isValuePick = bestValue?.driver.id === driver.id;
                     return (
-                    <div key={driver.id} style={{ background: C.surface, border: `1px solid ${isValuePick ? C.gold : (constructorMatch ? "rgba(255,209,0,.28)" : "rgb(32,32,40)")}`, borderRadius: 10, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", animation: anim("up", 60 + ri * 40) }}>
+                    <div key={driver.id} style={{ background: C.surface, border: `1px solid ${isValuePick ? C.gold : (isYuki ? "rgba(88,189,55,.4)" : (constructorMatch ? "rgba(255,209,0,.28)" : "rgb(32,32,40)"))}`, borderRadius: 10, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", animation: anim("up", 60 + ri * 40) }}>
                       <div style={{ flex: 1, minWidth: 150, display: "flex", flexDirection: "column", gap: 3 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody }}>{driver.name} {isValuePick && "💎"}</span>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textFaint }}>
                           <ConstructorLogo constructor={effConstructor} results={results} drivers={drivers} size={13} />{effConstructor}
                           {effConstructor !== driver.constructor && <span title={`Normally ${driver.constructor}`} style={{color:"#D4AC0D",fontWeight:700,marginLeft:4}}>SUB</span>}
                           {constructorMatch && <b style={{ color: C.gold, marginLeft: 4 }}>+15% 🏆</b>}
+                          {isYuki && <b title="House rule — Yuki Tsunoda's points are always doubled" style={{ color: "rgb(130,205,105)", marginLeft: 4 }}>×2 🎲</b>}
                         </span>
                       </div>
                       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -807,6 +811,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, overrides,
                   const selId = ex?.driver_id ?? cur?.driverId;
                   const selDriver = drivers.find(d => d.id === selId);
                   const bonus = !!(selDriver && owner && selDriver.constructor === owner.constructor);
+                  const isYuki = selDriver?.name === "Yuki Tsunoda";
                   return (
                     <div key={pick} style={{ display: "grid", gridTemplateColumns: "60px 60px 130px 1fr 190px 90px", alignItems: "center", padding: "9px 20px", gap: 8, background: ident.row, borderTop: `1px solid ${C.rowLine}`, borderLeft: `3px solid ${ident.color}`, animation: anim("up", 20 + i * 22) }}>
                       <span style={{ fontFamily: "Orbitron,sans-serif", fontWeight: 700, fontSize: 13, color: C.textFaint }}>{pick}</span>
@@ -837,8 +842,9 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, overrides,
                           );
                         })()}
                       </span>
-                      <span style={{ textAlign: "right" }}>
+                      <span style={{ textAlign: "right", display: "flex", flexDirection: "column", gap: 2, alignItems: "flex-end" }}>
                         {bonus && <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, color: C.gold }}>★ +15%</span>}
+                        {isYuki && <span title="House rule — Yuki Tsunoda's points are always doubled" style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, color: "rgb(130,205,105)" }}>×2 🎲</span>}
                       </span>
                     </div>
                   );
@@ -858,6 +864,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, overrides,
               <span style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: OWNER_STYLE[0].color }} />{owners[0]?.name}</span>
               <span style={{ display: "flex", alignItems: "center", gap: 7 }}><span style={{ width: 10, height: 10, borderRadius: "50%", background: OWNER_STYLE[1].color }} />{owners[1]?.name}</span>
               <span><span style={{ color: C.gold }}>★ +15%</span> driver matches owner's constructor</span>
+              <span><span style={{ color: "rgb(130,205,105)" }}>×2 🎲</span> Yuki Tsunoda's points are always doubled</span>
             </span>
           </div>
         </>
@@ -1011,7 +1018,7 @@ function ResultsTab({ races, results, drivers, overrides, reload }) {
             <button onClick={save} disabled={saving} style={{ background: C.red, border: "none", color: "#fff", padding: "14px 30px", borderRadius: 10, fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", cursor: "pointer", boxShadow: "0 6px 20px rgba(225,6,0,.28)", opacity: saving ? 0.6 : 1 }}>
               {saving ? "Saving…" : "💾 Save results & notify"}
             </button>
-            <span style={{ fontSize: 12, color: C.textFaint }}>Base 30 / 24 / 18 / 12 / 6 / 2 by finishing band · Pole +5 · FL +3 · MPG +2 · Sprint win +5 · Sprint pole +3 · ×1.15 constructor match</span>
+            <span style={{ fontSize: 12, color: C.textFaint }}>Base 30 / 24 / 18 / 12 / 6 / 2 by finishing band · Pole +5 · FL +3 · MPG +2 · Sprint win +5 · Sprint pole +3 · ×1.15 constructor match · ×2 whoever drafts Yuki Tsunoda</span>
           </div>
         </div>
       )}
