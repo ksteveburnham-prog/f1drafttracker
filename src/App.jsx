@@ -96,11 +96,34 @@ function ConstructorLogo({ constructor, results, drivers, size = 15 }) {
   );
 }
 
+// ── Per-race driver overrides ─────────────────────────────────
+// A driver's constructor and availability can differ for a single race
+// (injury sub, mid-season promotion). race_driver_overrides holds those
+// exceptions; a null column there means "fall back to the drivers row".
+function findOverride(overrides, raceId, driverId) {
+  if (!overrides?.length || !raceId || !driverId) return null;
+  return overrides.find(o => o.race_id === raceId && o.driver_id === driverId) ?? null;
+}
+
+function effectiveConstructor(driver, raceId, overrides) {
+  if (!driver) return null;
+  const ov = findOverride(overrides, raceId, driver.id);
+  return ov?.constructor ?? driver.constructor;
+}
+
+function isDriverActive(driver, raceId, overrides) {
+  if (!driver) return false;
+  const ov = findOverride(overrides, raceId, driver.id);
+  if (ov && ov.active !== null && ov.active !== undefined) return ov.active;
+  return driver.active !== false;
+}
+
 // ── Data hook ─────────────────────────────────────────────────
 function useData() {
   const [state, setState] = useState({
     owners: [], drivers: [], races: [], drafts: [],
     results: [], raceScores: [], standings: [], payouts: [],
+    overrides: [],
     loading: true, error: null,
   });
 
@@ -111,6 +134,7 @@ function useData() {
         { data: owners }, { data: drivers }, { data: races },
         { data: drafts }, { data: results },
         { data: raceScores }, { data: standings }, { data: payouts },
+        { data: overrides },
       ] = await Promise.all([
         supabase.from("owners").select("*").order("name"),
         supabase.from("drivers").select("*").order("name"),
@@ -120,8 +144,9 @@ function useData() {
         supabase.from("race_scores").select("*").order("round"),
         supabase.from("season_standings").select("*"),
         supabase.from("weekly_payouts").select("*").order("round"),
+        supabase.from("race_driver_overrides").select("*"),
       ]);
-      setState({ owners: owners ?? [], drivers: drivers ?? [], races: races ?? [], drafts: drafts ?? [], results: results ?? [], raceScores: raceScores ?? [], standings: standings ?? [], payouts: payouts ?? [], loading: false, error: null });
+      setState({ owners: owners ?? [], drivers: drivers ?? [], races: races ?? [], drafts: drafts ?? [], results: results ?? [], raceScores: raceScores ?? [], standings: standings ?? [], payouts: payouts ?? [], overrides: overrides ?? [], loading: false, error: null });
     } catch (err) {
       setState(s => ({ ...s, loading: false, error: err.message }));
     }
@@ -393,7 +418,7 @@ function computeRecord(ownerName, payouts, roundsScored) {
 }
 
 // ── Points breakdown modal ─────────────────────────────────────
-function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts, onClose }) {
+function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts, overrides, onClose }) {
   if (!race) return null;
 
   const raceResults = results.filter(r => r.race_id === race.id);
@@ -436,11 +461,12 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
       if (result.sprint_win) bonus += 5;
       if (result.sprint_pole) bonus += 3;
 
-      const constructorMatch = driver.constructor === owner.constructor;
+      const effConstructor = effectiveConstructor(driver, race.id, overrides);
+      const constructorMatch = effConstructor === owner.constructor;
       const multiplier = constructorMatch ? 1.15 : 1.0;
       const total = Math.round(base * multiplier + bonus);
 
-      return { driver, chips, total, constructorMatch, pickNumber: draft.pick_number };
+      return { driver, chips, total, constructorMatch, effConstructor, pickNumber: draft.pick_number };
     }).filter(Boolean);
 
     const totalPts = driverRows.reduce((s, r) => s + r.total, 0);
@@ -497,14 +523,15 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
                 <div style={{ color: C.textFaint, fontSize: 13, fontStyle: "italic" }}>No results yet</div>
               ) : (
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {driverRows.map(({ driver, total, chips, constructorMatch }, ri) => {
+                  {driverRows.map(({ driver, total, chips, constructorMatch, effConstructor }, ri) => {
                     const isValuePick = bestValue?.driver.id === driver.id;
                     return (
                     <div key={driver.id} style={{ background: C.surface, border: `1px solid ${isValuePick ? C.gold : (constructorMatch ? "rgba(255,209,0,.28)" : "rgb(32,32,40)")}`, borderRadius: 10, padding: "11px 14px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", animation: anim("up", 60 + ri * 40) }}>
                       <div style={{ flex: 1, minWidth: 150, display: "flex", flexDirection: "column", gap: 3 }}>
                         <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody }}>{driver.name} {isValuePick && "💎"}</span>
                         <span style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: C.textFaint }}>
-                          <ConstructorLogo constructor={driver.constructor} results={results} drivers={drivers} size={13} />{driver.constructor}
+                          <ConstructorLogo constructor={effConstructor} results={results} drivers={drivers} size={13} />{effConstructor}
+                          {effConstructor !== driver.constructor && <span title={`Normally ${driver.constructor}`} style={{color:"#D4AC0D",fontWeight:700,marginLeft:4}}>SUB</span>}
                           {constructorMatch && <b style={{ color: C.gold, marginLeft: 4 }}>+15% 🏆</b>}
                         </span>
                       </div>
@@ -535,7 +562,7 @@ function PointsBreakdownModal({ race, results, drafts, owners, drivers, payouts,
 }
 
 // ── Scoreboard tab ────────────────────────────────────────────
-function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers, spoilerMode, progress, onReveal }) {
+function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts, owners, drivers, overrides, spoilerMode, progress, onReveal }) {
   const [breakdown, setBreakdown] = useState(null);
 
   const ownerNames = standings.map(s => s.owner_name);
@@ -547,7 +574,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
       {breakdown && (
-        <PointsBreakdownModal race={breakdown} results={results} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} onClose={() => setBreakdown(null)} />
+        <PointsBreakdownModal race={breakdown} results={results} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} overrides={overrides} onClose={() => setBreakdown(null)} />
       )}
 
       <NextRaceCard races={races} />
@@ -659,7 +686,7 @@ function ScoreboardTab({ standings, raceScores, payouts, races, results, drafts,
 }
 
 // ── Draft tab ─────────────────────────────────────────────────
-function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) {
+function DraftTab({ races, drafts, owners, drivers, payouts, results, overrides, reload }) {
   const [selRace, setSelRace] = usePersistedState("f1app.draftRace", "");
   const [picks, setPicks] = useState({});
   const [saving, setSaving] = useState(false);
@@ -792,19 +819,23 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
                           <select value={cur?.driverId ?? ""} onChange={e => handlePick(pick, e.target.value, ownerIdx)}
                             style={{ width: "100%", maxWidth: 280, background: C.surface, border: `1px solid ${cur?.driverId ? "rgba(225,6,0,.45)" : C.borderStrong}`, color: cur?.driverId ? C.textBody : C.textFaint, padding: "7px 11px", borderRadius: 8, fontSize: 13, cursor: "pointer", outline: "none", transition: "border-color .2s" }}>
                             <option value="">— Select driver —</option>
-                            {drivers.filter(d => !usedIds.includes(d.id) || d.id === cur?.driverId).map(d => (
+                            {drivers.filter(d=>(isDriverActive(d,race.id,overrides)&&!usedIds.includes(d.id))||d.id===cur?.driverId).map(d => (
                               <option key={d.id} value={d.id}>{d.name}</option>
                             ))}
                           </select>
                         )}
                       </span>
                       <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.textMuted }}>
-                        {selDriver && (
-                          <>
-                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: CONSTRUCTOR_COLORS[selDriver.constructor] ?? C.textFaint, flexShrink: 0 }} />
-                            {selDriver.constructor}
-                          </>
-                        )}
+                        {selDriver&&(()=>{
+                          const eff=effectiveConstructor(selDriver,race.id,overrides);
+                          const swapped=eff!==selDriver.constructor;
+                          return (
+                            <span style={{display:"flex",alignItems:"center",gap:6,fontSize:12,color:"#aaa"}}>
+                              <ConstructorLogo constructor={eff} results={results} drivers={drivers}/>{eff}
+                              {swapped&&<span title={`Normally ${selDriver.constructor} — substituted for this race`} style={{fontSize:10,color:"#D4AC0D",fontWeight:700}}>SUB</span>}
+                            </span>
+                          );
+                        })()}
                       </span>
                       <span style={{ textAlign: "right" }}>
                         {bonus && <span style={{ fontFamily: "'Montserrat',sans-serif", fontWeight: 700, fontSize: 10, color: C.gold }}>★ +15%</span>}
@@ -836,7 +867,7 @@ function DraftTab({ races, drafts, owners, drivers, payouts, results, reload }) 
 }
 
 // ── Results tab ───────────────────────────────────────────────
-function ResultsTab({ races, results, drivers, reload }) {
+function ResultsTab({ races, results, drivers, overrides, reload }) {
   const [selRace, setSelRace] = usePersistedState("f1app.resultsRace", "");
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
@@ -942,13 +973,15 @@ function ResultsTab({ races, results, drivers, reload }) {
                   <span>Driver</span><span>Constructor</span><span style={{ textAlign: "center" }}>DNF</span><span style={{ textAlign: "center" }}>Pos</span><span style={{ textAlign: "center" }}>Pole</span><span style={{ textAlign: "center" }}>FL</span><span style={{ textAlign: "center" }}>MPG</span>
                   {race.has_sprint && <><span style={{ textAlign: "center" }}>SW</span><span style={{ textAlign: "center" }}>SP</span></>}
                 </div>
-                {drivers.map((d, i) => {
+                {drivers.filter(d=>isDriverActive(d,race.id,overrides)).map((d, i) => {
                   const f = form[d.id] ?? {};
+                  const effC = effectiveConstructor(d, race.id, overrides);
                   return (
                     <div key={d.id} style={{ display: "grid", gridTemplateColumns: gridCols, alignItems: "center", padding: "7px 20px", borderTop: `1px solid ${C.rowLine}`, transition: "background .2s", animation: anim("up", 10 + i * 16) }}>
                       <span style={{ fontSize: 13, fontWeight: 600, color: C.textBody, whiteSpace: "nowrap" }}>{d.name}</span>
                       <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: C.textMuted }}>
-                        <ConstructorLogo constructor={d.constructor} results={results} drivers={drivers} size={14} />{d.constructor}
+                        <ConstructorLogo constructor={effC} results={results} drivers={drivers} size={14} />{effC}
+                        {effC !== d.constructor && <span title={`Normally ${d.constructor}`} style={{color:"#D4AC0D",fontWeight:700,marginLeft:4,fontSize:10}}>SUB</span>}
                       </span>
                       <span style={{ textAlign: "center" }}>
                         <input type="checkbox" checked={f.dnf ?? false} onChange={e => { upd(d.id, "dnf", e.target.checked); if (e.target.checked) upd(d.id, "finish_position", ""); }} style={{ width: 15, height: 15, cursor: "pointer", accentColor: C.red }} />
@@ -988,7 +1021,7 @@ function ResultsTab({ races, results, drivers, reload }) {
 
 // ── Main App ──────────────────────────────────────────────────
 export default function App() {
-  const { owners, drivers, races, drafts, results, raceScores, standings, payouts, loading, error, reload } = useData();
+  const { owners, drivers, races, drafts, results, raceScores, standings, payouts, overrides, loading, error, reload } = useData();
   const [tab, setTab] = usePersistedState("f1app.tab", "scoreboard");
   const [spoilerMode, setSpoilerMode] = useState(() => {
     try { return localStorage.getItem("spoilerMode") === "true"; } catch { return false; }
@@ -1024,13 +1057,13 @@ export default function App() {
         {loading && <Spinner />}
         {error && <div style={{ background: "rgba(225,6,0,.08)", border: "1px solid rgba(225,6,0,.3)", color: C.redLight, padding: 16, borderRadius: 10 }}>⚠️ {error}</div>}
         {!loading && !error && tab === "scoreboard" && (
-          <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers} spoilerMode={spoilerMode} progress={progress} onReveal={toggleSpoiler} />
+          <ScoreboardTab standings={standings} raceScores={raceScores} payouts={payouts} races={races} results={results} drafts={drafts} owners={owners} drivers={drivers} overrides={overrides} spoilerMode={spoilerMode} progress={progress} onReveal={toggleSpoiler} />
         )}
         {!loading && !error && tab === "draft" && (
-          <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} results={results} reload={reload} />
+          <DraftTab races={races} drafts={drafts} owners={owners} drivers={drivers} payouts={payouts} results={results} overrides={overrides} reload={reload} />
         )}
         {!loading && !error && tab === "results" && (
-          <ResultsTab races={races} results={results} drivers={drivers} reload={reload} />
+          <ResultsTab races={races} results={results} drivers={drivers} overrides={overrides} reload={reload} />
         )}
       </main>
     </div>
