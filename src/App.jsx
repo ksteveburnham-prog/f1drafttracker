@@ -63,9 +63,12 @@ function anim(kind, delay = 0) {
 function getConstructorEmoji(constructor, results, drivers) {
   if (!results?.length || !drivers?.length) return "🏗️";
 
-  const racesWithResults = [...new Set(results.map(r => r.race_id))];
-  if (!racesWithResults.length) return "🏗️";
-  const lastRaceId = racesWithResults[racesWithResults.length - 1];
+  let lastRaceId = null, lastRound = -Infinity;
+  for (const r of results) {
+    const round = r.races?.round;
+    if (round != null && round > lastRound) { lastRound = round; lastRaceId = r.race_id; }
+  }
+  if (lastRaceId == null) return "🏗️";
 
   const constructorDrivers = drivers.filter(d => d.constructor === constructor);
   if (!constructorDrivers.length) return "🏗️";
