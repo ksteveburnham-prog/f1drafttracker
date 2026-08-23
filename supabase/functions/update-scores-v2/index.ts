@@ -218,6 +218,7 @@ Deno.serve(async (req) => {
       14: "Fernando Alonso",
       16: "Charles Leclerc",
       18: "Lance Stroll",
+      22: "Yuki Tsunoda",
       23: "Alex Albon",
       27: "Nico Hulkenberg",
       30: "Liam Lawson",
