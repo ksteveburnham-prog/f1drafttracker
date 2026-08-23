@@ -49,13 +49,17 @@ insert into drivers (name, constructor) values
 
 -- ── Races ────────────────────────────────────────────────────
 create table races (
-  id              uuid primary key default uuid_generate_v4(),
-  round           int not null unique,
-  name            text not null,
-  has_sprint      boolean default false,
-  race_date       date,
-  results_updated boolean default false,
-  updated_at      timestamptz
+  id                 uuid primary key default uuid_generate_v4(),
+  round              int not null unique,
+  name               text not null,
+  has_sprint         boolean default false,
+  race_date          date,
+  results_updated    boolean default false,
+  updated_at         timestamptz,
+  -- OpenF1's internal session identifier for this race, stored on the race
+  -- row itself (not derived from `round`) so it can't drift out of sync when
+  -- rounds get renumbered — see migration add_openf1_meeting_key_to_races.
+  openf1_meeting_key int
 );
 
 -- Saudi Arabia (originally round 5, Apr 19) was postponed due to regional
@@ -242,9 +246,11 @@ create policy "auth_write" on races         for update using (auth.role() = 'aut
 -- ============================================================
 -- Migrations applied directly to the live project (not reflected
 -- in the tables/views above — see `supabase migrations list`):
+--   20260730212726  relocate_bahrain_gp_to_malaysia_2026
 --   20260819172144  add_race_driver_overrides
 --   20260819172200  views_respect_race_driver_overrides
 --   20260821172718  double_yuki_tsunoda_points
+--   20260823180856  add_openf1_meeting_key_to_races
 -- ============================================================
 
 -- ── House rule: whoever drafts Yuki Tsunoda gets his entire race
