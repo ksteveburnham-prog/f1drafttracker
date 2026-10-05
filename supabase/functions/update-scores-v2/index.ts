@@ -108,14 +108,17 @@ function findMostPositionsGained(
 ): number | null {
   let maxGain = 0;
   let bestDriver: number | null = null;
+  let bestFinish = Infinity;
   for (const [driverNumStr, racePos] of Object.entries(racePositions)) {
     const driverNum = Number(driverNumStr);
     const startPos = gridPositions[driverNum];
     if (!startPos) continue;
     const gain = startPos - racePos;
-    if (gain > maxGain) {
+    // Ties on gain go to the better finisher.
+    if (gain > maxGain || (gain === maxGain && gain > 0 && racePos < bestFinish)) {
       maxGain = gain;
       bestDriver = driverNum;
+      bestFinish = racePos;
     }
   }
   return bestDriver;
