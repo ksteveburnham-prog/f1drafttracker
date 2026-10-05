@@ -65,6 +65,26 @@ async function getFinalPositions(sessionKey: number, excludeDnf = false): Promis
   return result;
 }
 
+// Returns the actual race starting grid: { driver_number: grid_position }.
+// Unlike qualifying order, this reflects pre-race grid penalties and
+// pit-lane starts. OpenF1 keys starting_grid rows by the session that set
+// the grid, so passing the main Qualifying session_key also keeps the
+// sprint grid out on sprint weekends.
+async function getStartingGrid(qualiSessionKey: number): Promise<Record<number, number>> {
+  const url = `${OPENF1}/starting_grid?session_key=${qualiSessionKey}`;
+  console.log(`Fetching starting grid: ${url}`);
+  const res = await fetch(url);
+  let data: any[] = [];
+  try { data = await res.json(); } catch(e) { console.error(`Starting grid JSON parse error: ${e}`); }
+  const entries: any[] = Array.isArray(data) ? data : [];
+  const result: Record<number, number> = {};
+  for (const entry of entries) {
+    if (entry.position == null) continue;
+    result[entry.driver_number] = entry.position;
+  }
+  return result;
+}
+
 async function getFastestLapDriver(sessionKey: number): Promise<number | null> {
   const res = await fetch(`${OPENF1}/session_result?session_key=${sessionKey}`);
   const data = await res.json();
@@ -83,19 +103,22 @@ async function getFastestLapDriver(sessionKey: number): Promise<number | null> {
 // ── Bonus detection helpers ───────────────────────────────────
 
 function findMostPositionsGained(
-  qualiPositions: Record<number, number>,
+  gridPositions: Record<number, number>,
   racePositions: Record<number, number>
 ): number | null {
   let maxGain = 0;
   let bestDriver: number | null = null;
+  let bestFinish = Infinity;
   for (const [driverNumStr, racePos] of Object.entries(racePositions)) {
     const driverNum = Number(driverNumStr);
-    const startPos = qualiPositions[driverNum];
+    const startPos = gridPositions[driverNum];
     if (!startPos) continue;
     const gain = startPos - racePos;
-    if (gain > maxGain) {
+    // Ties on gain go to the better finisher.
+    if (gain > maxGain || (gain === maxGain && gain > 0 && racePos < bestFinish)) {
       maxGain = gain;
       bestDriver = driverNum;
+      bestFinish = racePos;
     }
   }
   return bestDriver;
@@ -194,6 +217,8 @@ Deno.serve(async (req) => {
     await sleep(400);
     const qualiPositions = qualiSessionKey ? await getFinalPositions(qualiSessionKey) : {};
     await sleep(400);
+    const startingGrid = qualiSessionKey ? await getStartingGrid(qualiSessionKey) : {};
+    await sleep(400);
     const sprintPositions = sprintSessionKey ? await getFinalPositions(sprintSessionKey) : {};
     if (sprintSessionKey) await sleep(400);
     const sprintQualiPositions = sprintQualiSessionKey ? await getFinalPositions(sprintQualiSessionKey) : {};
@@ -242,9 +267,14 @@ Deno.serve(async (req) => {
     // Fastest lap (from session_result duration field)
     const fastestLapNum = await getFastestLapDriver(raceSessionKey);
 
-    // Most positions gained = biggest quali → race improvement
-    const mostGainedNum = Object.keys(qualiPositions).length > 0
-      ? findMostPositionsGained(qualiPositions, racePositions)
+    // Most positions gained = biggest starting grid → race improvement, so
+    // grid penalties count. Falls back to qualifying order if OpenF1 hasn't
+    // published the starting grid yet.
+    const usedStartingGrid = Object.keys(startingGrid).length > 0;
+    const gridPositions = usedStartingGrid ? startingGrid : qualiPositions;
+    if (!usedStartingGrid) console.warn("No starting grid from OpenF1 — using qualifying order for most positions gained");
+    const mostGainedNum = Object.keys(gridPositions).length > 0
+      ? findMostPositionsGained(gridPositions, racePositions)
       : null;
 
     // Sprint win = P1 in sprint race
@@ -344,6 +374,7 @@ Deno.serve(async (req) => {
           sprint_win:           sprintWinNum     ? numToName[sprintWinNum]     : null,
           sprint_pole:          sprintPoleNum    ? numToName[sprintPoleNum]    : null,
         },
+        positions_gained_basis: usedStartingGrid ? "starting_grid" : "qualifying",
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
