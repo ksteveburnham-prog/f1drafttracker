@@ -252,6 +252,7 @@ Deno.serve(async (req) => {
       43: "Franco Colapinto",
       44: "Lewis Hamilton",
       50: "Ryo Hirakawa",
+      51: "Rafael Camara",
       55: "Carlos Sainz",
       63: "George Russell",
       77: "Valtteri Bottas",
